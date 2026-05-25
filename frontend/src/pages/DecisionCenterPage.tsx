@@ -39,6 +39,12 @@ const stages: Array<{ key: DecisionStage; label: string }> = [
   { key: "summary", label: "风控" }
 ];
 
+const MIN_STAGE_VISIBLE_MS = 500;
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
+
 function parseSymbols(value: string): string[] {
   return value
     .split(/[,\n]/)
@@ -118,7 +124,7 @@ export default function DecisionCenterPage() {
 
     try {
       setStage("scan");
-      const decision = await api.runDecision({
+      const decisionRequest = api.runDecision({
         symbols: parseSymbols(customUniverse),
         max_proposals: Number(maxProposals),
         max_notional: maxNotional,
@@ -126,15 +132,21 @@ export default function DecisionCenterPage() {
         order_type: "MARKET",
         limit_price: null
       });
+      await wait(MIN_STAGE_VISIBLE_MS);
+      const decision = await decisionRequest;
 
       if (decision.proposal_run.proposals.length === 0) {
         throw new Error("没有生成可提交会议的提案。");
       }
 
       setStage("select");
+      await wait(MIN_STAGE_VISIBLE_MS);
       setStage("conference");
+      await wait(MIN_STAGE_VISIBLE_MS);
+      const conferenceRequest = api.conference(decision.conference.conference_id);
       setStage("summary");
-      const conference = await api.conference(decision.conference.conference_id);
+      await wait(MIN_STAGE_VISIBLE_MS);
+      const conference = await conferenceRequest;
       await invalidateAfterDecision(decision.proposal_run.proposal_run_id);
       setResult({
         proposalRun: decision.proposal_run,
