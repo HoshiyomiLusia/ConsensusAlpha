@@ -177,20 +177,6 @@ export default function DecisionCenterPage() {
             <strong>自动流程</strong>
             <span>候选池脚本 / 一审提案 / Agent 会议 / 风控与订单路由</span>
           </div>
-          <button className="primary-action simple-main-action" type="submit" disabled={isRunning}>
-            {isRunning ? <Loader2 size={20} className="spin-icon" /> : <Sparkles size={20} />}
-            {isRunning ? "正在处理" : "开始自动决策"}
-          </button>
-          {(isRunning || error) && (
-            <div className={error ? "simple-inline-feedback danger" : "simple-inline-feedback"}>
-              <strong>{error ? "运行失败" : `正在执行：${currentStageLabel(stage)}`}</strong>
-              <span>
-                {error
-                  ? error
-                  : "系统正在扫描候选池、运行一审并提交会议。"}
-              </span>
-            </div>
-          )}
           <details className="simple-options">
             <summary>扫描与风控设置</summary>
             <div>
@@ -227,6 +213,20 @@ export default function DecisionCenterPage() {
               </label>
             </div>
           </details>
+          <button className="primary-action simple-main-action" type="submit" disabled={isRunning}>
+            {isRunning ? <Loader2 size={20} className="spin-icon" /> : <Sparkles size={20} />}
+            {isRunning ? "正在处理" : "开始自动决策"}
+          </button>
+          {(isRunning || error) && (
+            <div className={error ? "simple-inline-feedback danger" : "simple-inline-feedback"}>
+              <strong>{error ? "运行失败" : `正在执行：${currentStageLabel(stage)}`}</strong>
+              <span>
+                {error
+                  ? error
+                  : "系统正在扫描候选池、运行一审并提交会议。"}
+              </span>
+            </div>
+          )}
         </form>
       </section>
 
