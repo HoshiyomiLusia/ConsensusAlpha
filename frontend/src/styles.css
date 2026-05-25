@@ -1381,7 +1381,7 @@ textarea {
 }
 
 .table-model-usage {
-  grid-template-columns: 1.1fr 90px 1.4fr 90px 90px 100px;
+  grid-template-columns: 1.1fr 80px 1.2fr 130px 80px 80px 90px;
 }
 
 .audit-list {

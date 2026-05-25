@@ -1,7 +1,7 @@
 from typing import Protocol
 
 from app.conference.models import AgentOpinion
-from app.market_data.models import MarketSnapshot
+from app.market_data.models import MarketContext
 
 
 class LLMProvider(Protocol):
@@ -9,7 +9,7 @@ class LLMProvider(Protocol):
         self,
         *,
         role: str,
-        snapshot: MarketSnapshot,
+        context: MarketContext,
         requested_action: str | None = None,
     ) -> AgentOpinion: ...
 

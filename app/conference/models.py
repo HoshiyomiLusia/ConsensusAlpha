@@ -24,6 +24,7 @@ class AgentOpinion(BaseModel):
     blocking_concerns: list[str] = Field(default_factory=list)
     suggested_max_position_pct: float | None = None
     suggested_stop_loss_pct: float | None = None
+    prompt_version: str | None = None
     raw_payload: dict = Field(default_factory=dict)
 
 
@@ -79,6 +80,7 @@ class ModelUsageEvent(BaseModel):
     completion_tokens: int
     total_tokens: int
     estimated: bool = False
+    prompt_version: str | None = None
 
 
 class ModelUsageSummary(BaseModel):

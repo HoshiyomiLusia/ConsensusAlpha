@@ -19,7 +19,16 @@ from app.core.config import Settings
 from app.core.logging import redact_payload
 from app.core.time import utc_now
 from app.execution.models import ExecutionOrder
-from app.market_data.models import MarketSnapshot
+from app.market_data.models import HistoricalBar, MarketSnapshot
+
+
+_WEBULL_BAR_PERIODS = {
+    "1m": "m1",
+    "5m": "m5",
+    "15m": "m15",
+    "1h": "h1",
+    "1d": "d1",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +80,55 @@ class WebullProvider:
             source=f"webull:{self.settings.webull_env}",
             raw_payload=redact_payload(payload),
         )
+
+    async def get_historical_bars(
+        self,
+        symbol: str,
+        interval: str,
+        lookback: int,
+        asset_type: str = "equity",
+    ) -> list[HistoricalBar]:
+        self._ensure_stock_or_etf(asset_type)
+        period = _WEBULL_BAR_PERIODS.get(interval)
+        if period is None:
+            raise BrokerProviderError(
+                f"Unsupported bar interval: {interval}",
+                code="unsupported_interval",
+                details={"interval": interval},
+            )
+        response = await asyncio.to_thread(
+            self._sdk_call,
+            lambda: self.data_client.market_data.get_history_bar(
+                [symbol.upper()],
+                self._webull_category(asset_type),
+                period,
+                int(lookback),
+            ),
+        )
+        payload = self._response_payload(response)
+        items = self._items(payload)
+        bars: list[HistoricalBar] = []
+        for item in items:
+            close = self._decimal_from_keys(item, "close", "closePrice")
+            if close is None:
+                continue
+            timestamp = self._timestamp_from_payload(item)
+            open_ = self._decimal_from_keys(item, "open", "openPrice") or close
+            high = self._decimal_from_keys(item, "high", "highPrice") or close
+            low = self._decimal_from_keys(item, "low", "lowPrice") or close
+            volume = self._int_from_keys(item, "volume", "tradeVolume")
+            bars.append(
+                HistoricalBar(
+                    timestamp=timestamp,
+                    open=open_,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=volume,
+                )
+            )
+        bars.sort(key=lambda bar: bar.timestamp)
+        return bars
 
     async def get_account_summary(self) -> AccountSummary:
         account_id = self._account_id()

@@ -70,6 +70,7 @@ class AgentOpinionTable(TimestampMixin, Base):
     blocking_concerns: Mapped[list] = mapped_column(JSONType, default=list)
     suggested_max_position_pct: Mapped[float | None] = mapped_column(Float)
     suggested_stop_loss_pct: Mapped[float | None] = mapped_column(Float)
+    prompt_version: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     raw_payload: Mapped[dict] = mapped_column(JSONType, default=dict)
 
 
@@ -236,4 +237,5 @@ class ModelUsageEventTable(TimestampMixin, Base):
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
     total_tokens: Mapped[int] = mapped_column(Integer, default=0)
     estimated: Mapped[bool] = mapped_column(Boolean, default=False)
+    prompt_version: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     raw_payload: Mapped[dict] = mapped_column(JSONType, default=dict)

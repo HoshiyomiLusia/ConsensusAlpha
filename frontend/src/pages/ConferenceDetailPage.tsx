@@ -85,7 +85,10 @@ export default function ConferenceDetailPage() {
               <div className="panel-heading">
                 <div>
                   <h4>{formatRole(opinion.role)}</h4>
-                  <p>{opinion.agent_id}</p>
+                  <p>
+                    {opinion.agent_id}
+                    {opinion.prompt_version ? ` / ${opinion.prompt_version}` : ""}
+                  </p>
                 </div>
                 <StatusBadge value={opinion.action} tone={opinion.action === "HOLD" ? "warn" : "ok"} />
               </div>
@@ -128,6 +131,7 @@ export default function ConferenceDetailPage() {
               <span>角色</span>
               <span>操作</span>
               <span>模型</span>
+              <span>Prompt</span>
               <span>输入</span>
               <span>输出</span>
               <span>总计</span>
@@ -137,6 +141,7 @@ export default function ConferenceDetailPage() {
                 <strong>{formatRole(event.role)}</strong>
                 <span>{event.operation === "summary" ? "总结" : "意见"}</span>
                 <span>{event.provider}{event.model ? ` / ${event.model}` : ""}</span>
+                <span>{event.prompt_version || "未记录"}</span>
                 <span>{event.prompt_tokens.toLocaleString()}</span>
                 <span>{event.completion_tokens.toLocaleString()}</span>
                 <span>{event.total_tokens.toLocaleString()}{event.estimated ? " 估算" : ""}</span>

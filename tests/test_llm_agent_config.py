@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from app.agents.llm_provider import build_llm_provider
 from app.core.config import AGENT_ROLES, AgentLLMConfig, Settings
-from app.market_data.models import MarketSnapshot
+from app.market_data.models import MarketContext, MarketSnapshot
 
 
 def test_settings_redacts_per_agent_llm_secrets():
@@ -45,7 +45,8 @@ def test_multi_agent_mock_provider_routes_by_role():
         source="test",
     )
 
-    opinion = asyncio.run(provider.generate_opinion(role="market_analyst", snapshot=snapshot))
+    context = MarketContext.from_snapshot(snapshot)
+    opinion = asyncio.run(provider.generate_opinion(role="market_analyst", context=context))
 
     assert opinion.agent_id == "mock-market_analyst"
     assert opinion.action == "SELL"

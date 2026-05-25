@@ -73,6 +73,7 @@ def save_opinions(db: Session, conference_id: str, opinions: list[AgentOpinion])
                 blocking_concerns=opinion.blocking_concerns,
                 suggested_max_position_pct=opinion.suggested_max_position_pct,
                 suggested_stop_loss_pct=opinion.suggested_stop_loss_pct,
+                prompt_version=opinion.prompt_version or "",
                 raw_payload=opinion.model_dump(mode="json"),
             )
         )
@@ -92,6 +93,7 @@ def save_model_usage_events(db: Session, conference_id: str, events: list[dict])
                 completion_tokens=int(event.get("completion_tokens") or 0),
                 total_tokens=int(event.get("total_tokens") or 0),
                 estimated=bool(event.get("estimated", False)),
+                prompt_version=str(event.get("prompt_version") or ""),
                 raw_payload=event.get("raw_payload") or {},
             )
         )

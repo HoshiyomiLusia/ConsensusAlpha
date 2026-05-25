@@ -1,10 +1,20 @@
-from datetime import UTC, datetime
+import math
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from app.brokers.models import AccountSummary, OrderIntent, OrderPreview, Position, ProviderStatus
 from app.core.time import utc_now
 from app.execution.models import ExecutionOrder
-from app.market_data.models import MarketSnapshot
+from app.market_data.models import HistoricalBar, MarketSnapshot
+
+
+_INTERVAL_TO_SECONDS = {
+    "1m": 60,
+    "5m": 300,
+    "15m": 900,
+    "1h": 3600,
+    "1d": 86_400,
+}
 
 
 class MockBrokerProvider:
@@ -12,14 +22,8 @@ class MockBrokerProvider:
         self.account_id = account_id
 
     async def get_market_snapshot(self, symbol: str, asset_type: str = "equity") -> MarketSnapshot:
-        base_price = Decimal("100")
+        base_price = self._base_price(symbol)
         symbol = symbol.upper()
-        if symbol == "AAPL":
-            base_price = Decimal("195.25")
-        elif symbol == "MSFT":
-            base_price = Decimal("420.50")
-        elif symbol == "SPY":
-            base_price = Decimal("525.00")
 
         return MarketSnapshot(
             symbol=symbol,
@@ -34,6 +38,63 @@ class MockBrokerProvider:
             source="mock",
             raw_payload={"provider": "mock", "symbol": symbol},
         )
+
+    async def get_historical_bars(
+        self,
+        symbol: str,
+        interval: str,
+        lookback: int,
+        asset_type: str = "equity",
+    ) -> list[HistoricalBar]:
+        symbol = symbol.upper()
+        if interval not in _INTERVAL_TO_SECONDS:
+            return []
+        step = _INTERVAL_TO_SECONDS[interval]
+        base_price = self._base_price(symbol)
+        # Deterministic synthetic series: gentle drift + sinusoidal cycle + symbol-tied seed
+        seed = sum(ord(c) for c in symbol) or 1
+        now = datetime.now(UTC).replace(second=0, microsecond=0)
+        bars: list[HistoricalBar] = []
+        for i in range(lookback):
+            idx = lookback - i
+            ts = now - timedelta(seconds=step * idx)
+            drift = (i - lookback / 2) / max(lookback, 1) * 0.04  # +/-2% gentle drift
+            cycle = math.sin((i + seed) / 8.0) * 0.015
+            noise = math.sin((i * seed) / 5.0) * 0.004
+            multiplier = Decimal(str(1 + drift + cycle + noise))
+            close = (base_price * multiplier).quantize(Decimal("0.01"))
+            open_ = (close * Decimal(str(1 - noise * 0.3))).quantize(Decimal("0.01"))
+            high = max(open_, close) + Decimal("0.30")
+            low = min(open_, close) - Decimal("0.30")
+            volume = int(900_000 + (seed * 137 + i * 17) % 250_000)
+            bars.append(
+                HistoricalBar(
+                    timestamp=ts,
+                    open=open_,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=volume,
+                )
+            )
+        return bars
+
+    @staticmethod
+    def _base_price(symbol: str) -> Decimal:
+        symbol = symbol.upper()
+        if symbol == "AAPL":
+            return Decimal("195.25")
+        if symbol == "MSFT":
+            return Decimal("420.50")
+        if symbol == "SPY":
+            return Decimal("525.00")
+        if symbol == "NVDA":
+            return Decimal("950.00")
+        if symbol == "TSLA":
+            return Decimal("245.00")
+        if symbol == "QQQ":
+            return Decimal("495.00")
+        return Decimal("100")
 
     async def get_account_summary(self) -> AccountSummary:
         return AccountSummary(

@@ -30,6 +30,7 @@ def test_run_conference_api_returns_hold_with_mock_agents():
         assert body["snapshot"]["symbol"] == "AAPL"
         assert body["model_usage"]["total_tokens"] > 0
         assert len(body["model_usage"]["events"]) == 6
+        assert body["opinions"][0]["prompt_version"] == "2026-05-25-v1"
 
 
 def test_run_conference_api_creates_paper_order_with_unanimous_mock_buy():

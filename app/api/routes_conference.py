@@ -172,6 +172,7 @@ def _opinion_from_row(row: AgentOpinionTable) -> AgentOpinion:
         blocking_concerns=row.blocking_concerns or [],
         suggested_max_position_pct=row.suggested_max_position_pct,
         suggested_stop_loss_pct=row.suggested_stop_loss_pct,
+        prompt_version=row.prompt_version or None,
         raw_payload=row.raw_payload or {},
     )
 
@@ -198,6 +199,7 @@ def _model_usage_from_rows(rows) -> ModelUsageSummary:
             completion_tokens=row.completion_tokens,
             total_tokens=row.total_tokens,
             estimated=row.estimated,
+            prompt_version=row.prompt_version or None,
         )
         for row in rows
     ]

@@ -3,10 +3,11 @@ import json
 import httpx
 
 from app.agents.mock_llm import MockLLMProvider
+from app.agents.prompts import opinion_prompt_for, summary_prompt
 from app.agents.roles import CHAIRPERSON_ROLE
 from app.conference.models import AgentOpinion
 from app.core.config import AgentLLMConfig, Settings
-from app.market_data.models import MarketSnapshot
+from app.market_data.models import MarketContext
 
 
 class OpenAICompatibleLLMProvider:
@@ -45,26 +46,22 @@ class OpenAICompatibleLLMProvider:
         self,
         *,
         role: str,
-        snapshot: MarketSnapshot,
+        context: MarketContext,
         requested_action: str | None = None,
     ) -> AgentOpinion:
-        system = (
-            "You are an investment conference agent. Return strict JSON with keys: "
-            "agent_id, role, symbol, action, confidence, thesis, concerns, "
-            "blocking_concerns, suggested_max_position_pct, suggested_stop_loss_pct. "
-            "The action must be BUY, SELL, or HOLD."
-        )
+        role_prompt = opinion_prompt_for(role)
         user = {
             "role": role,
-            "snapshot": snapshot.model_dump(mode="json"),
+            "prompt_version": role_prompt.version,
+            "context": context.to_prompt_dict(),
             "requested_action": requested_action,
         }
         payload = {
             "model": self.model,
             "response_format": {"type": "json_object"},
             "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": json.dumps(user)},
+                {"role": "system", "content": role_prompt.system},
+                {"role": "user", "content": json.dumps(user, ensure_ascii=False)},
             ],
         }
         async with httpx.AsyncClient(timeout=30) as client:
@@ -79,13 +76,15 @@ class OpenAICompatibleLLMProvider:
         self._record_usage(
             role=role,
             operation="opinion",
+            prompt_version=role_prompt.version,
             usage=body.get("usage"),
             prompt=json.dumps(payload["messages"]),
             completion=content,
         )
         data = json.loads(content)
         data["role"] = role
-        data["symbol"] = snapshot.symbol
+        data["symbol"] = context.symbol
+        data["prompt_version"] = role_prompt.version
         data.setdefault("agent_id", f"{self.provider}-{self.model}-{role}")
         raw_body = dict(data)
         data.setdefault(
@@ -93,6 +92,7 @@ class OpenAICompatibleLLMProvider:
             {
                 "provider": self.provider,
                 "model": self.model,
+                "prompt_version": role_prompt.version,
                 "body": raw_body,
                 "usage": body.get("usage") or {},
             },
@@ -100,13 +100,14 @@ class OpenAICompatibleLLMProvider:
         return AgentOpinion.model_validate(data)
 
     async def summarize(self, opinions: list[AgentOpinion]) -> str:
+        role_prompt = summary_prompt()
         votes = [opinion.model_dump(mode="json") for opinion in opinions]
         payload = {
             "model": self.model,
             "messages": [
                 {
                     "role": "system",
-                    "content": "Summarize this investment conference in one concise paragraph.",
+                    "content": role_prompt.system,
                 },
                 {"role": "user", "content": json.dumps(votes)},
             ],
@@ -123,6 +124,7 @@ class OpenAICompatibleLLMProvider:
         self._record_usage(
             role=CHAIRPERSON_ROLE,
             operation="summary",
+            prompt_version=role_prompt.version,
             usage=body.get("usage"),
             prompt=json.dumps(payload["messages"]),
             completion=content,
@@ -139,6 +141,7 @@ class OpenAICompatibleLLMProvider:
         *,
         role: str,
         operation: str,
+        prompt_version: str,
         usage: dict | None,
         prompt: str,
         completion: str,
@@ -167,6 +170,7 @@ class OpenAICompatibleLLMProvider:
                 "completion_tokens": completion_tokens,
                 "total_tokens": total_tokens,
                 "estimated": estimated,
+                "prompt_version": prompt_version,
                 "raw_payload": raw_payload,
             }
         )
@@ -190,13 +194,13 @@ class MultiAgentLLMProvider:
         self,
         *,
         role: str,
-        snapshot: MarketSnapshot,
+        context: MarketContext,
         requested_action: str | None = None,
     ) -> AgentOpinion:
         provider = self.providers.get(role, self.fallback)
         opinion = await provider.generate_opinion(
             role=role,
-            snapshot=snapshot,
+            context=context,
             requested_action=requested_action,
         )
         self._usage_events.extend(_consume_usage_events(provider))

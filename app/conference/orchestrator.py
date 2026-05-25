@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from decimal import Decimal, ROUND_DOWN
 
 from sqlalchemy.orm import Session
@@ -9,6 +11,8 @@ from app.conference.models import ConferenceRunRequest, ConferenceRunResponse
 from app.core.config import Settings
 from app.core.time import utc_now
 from app.execution.paper import PaperExecutor
+from app.market_data.features import compute_market_context
+from app.market_data.models import HistoricalBar, MarketContext, MarketSnapshot
 from app.risk.models import RiskInput
 from app.risk.service import RiskService
 from app.storage.repositories import (
@@ -20,6 +24,17 @@ from app.storage.repositories import (
 )
 from app.storage.tables import ConferenceRunTable, ConsensusResultTable, LiveOrderPreviewTable
 
+logger = logging.getLogger(__name__)
+
+
+DEFAULT_TIMEFRAMES = (
+    ("1d", 100),
+    ("1h", 60),
+    ("5m", 60),
+)
+
+DEFAULT_BENCHMARKS = ("SPY",)
+
 
 class ConferenceOrchestrator:
     def __init__(self, *, settings: Settings, provider, llm_provider):
@@ -29,11 +44,28 @@ class ConferenceOrchestrator:
         self.risk_service = RiskService(settings)
         self.paper_executor = PaperExecutor()
 
-    async def run(self, *, db: Session, request: ConferenceRunRequest) -> ConferenceRunResponse:
+    async def run(
+        self,
+        *,
+        db: Session,
+        request: ConferenceRunRequest,
+        snapshot_override: MarketSnapshot | None = None,
+        persist: bool = True,
+    ) -> ConferenceRunResponse:
         conference_id = new_id("conf")
         started_at = utc_now()
-        snapshot = await self.provider.get_market_snapshot(request.symbol, request.asset_type)
+        snapshot = snapshot_override or await self.provider.get_market_snapshot(
+            request.symbol,
+            request.asset_type,
+        )
         snapshot_row = save_snapshot(db, snapshot)
+
+        market_context = await self._build_market_context(
+            symbol=request.symbol.upper(),
+            asset_type=request.asset_type,
+            snapshot=snapshot,
+            replay_mode=snapshot_override is not None,
+        )
 
         run_row = ConferenceRunTable(
             id=conference_id,
@@ -43,7 +75,9 @@ class ConferenceOrchestrator:
             context_payload={
                 "request": request.model_dump(mode="json"),
                 "snapshot": snapshot.model_dump(mode="json"),
+                "market_context": market_context.model_dump(mode="json"),
                 "settings": self.settings.redacted(),
+                "replay_mode": snapshot_override is not None,
             },
         )
         db.add(run_row)
@@ -53,7 +87,7 @@ class ConferenceOrchestrator:
         for role in ALL_AGENT_ROLES:
             opinion = await self.llm_provider.generate_opinion(
                 role=role,
-                snapshot=snapshot,
+                context=market_context,
                 requested_action=request.mock_agent_action,
             )
             opinions.append(opinion)
@@ -179,7 +213,10 @@ class ConferenceOrchestrator:
         run_row.risk_decision_id = risk_row.id
         run_row.order_id = order_id
         run_row.live_preview_id = live_preview_id
-        db.commit()
+        if persist:
+            db.commit()
+        else:
+            db.flush()
 
         return ConferenceRunResponse(
             conference_id=conference_id,
@@ -190,6 +227,80 @@ class ConferenceOrchestrator:
             order_id=order_id,
             live_preview_id=live_preview_id,
         )
+
+    async def _build_market_context(
+        self,
+        *,
+        symbol: str,
+        asset_type: str,
+        snapshot,
+        replay_mode: bool = False,
+    ) -> MarketContext:
+        if replay_mode:
+            context_payload = (snapshot.raw_payload or {}).get("market_context")
+            if isinstance(context_payload, dict):
+                try:
+                    return MarketContext.model_validate(context_payload)
+                except Exception as exc:  # pragma: no cover - historical payload drift
+                    logger.warning("market_context_replay_parse_failed symbol=%s err=%s", symbol, exc)
+            return MarketContext.from_snapshot(
+                snapshot,
+                notes=["replay mode: broker calls skipped; using stored snapshot"],
+            )
+
+        notes: list[str] = []
+        bars_by_interval, bar_notes = await self._fetch_bars(symbol, asset_type, DEFAULT_TIMEFRAMES)
+        notes.extend(bar_notes)
+
+        benchmark_bars: dict[str, list[HistoricalBar]] = {}
+        for bench in DEFAULT_BENCHMARKS:
+            if bench == symbol:
+                continue
+            try:
+                bars = await self.provider.get_historical_bars(bench, "1d", 60, "etf")
+                if bars:
+                    benchmark_bars[bench] = bars
+            except Exception as exc:  # pragma: no cover - degraded path
+                logger.warning("benchmark_bars_failed symbol=%s benchmark=%s err=%s", symbol, bench, exc)
+                notes.append(f"benchmark {bench} unavailable: {type(exc).__name__}")
+
+        if not any(bars_by_interval.values()):
+            return MarketContext.from_snapshot(snapshot, notes=notes or ["no historical data available"])
+
+        return compute_market_context(
+            snapshot,
+            bars_by_interval,
+            benchmark_bars=benchmark_bars or None,
+            notes=notes,
+        )
+
+    async def _fetch_bars(
+        self,
+        symbol: str,
+        asset_type: str,
+        intervals: tuple[tuple[str, int], ...],
+    ) -> tuple[dict[str, list[HistoricalBar]], list[str]]:
+        async def _one(interval: str, lookback: int) -> tuple[str, list[HistoricalBar], str | None]:
+            try:
+                bars = await self.provider.get_historical_bars(symbol, interval, lookback, asset_type)
+                return interval, bars, None
+            except Exception as exc:
+                logger.warning(
+                    "historical_bars_failed symbol=%s interval=%s err=%s",
+                    symbol,
+                    interval,
+                    exc,
+                )
+                return interval, [], f"{interval} bars unavailable: {type(exc).__name__}"
+
+        results = await asyncio.gather(*(_one(i, l) for i, l in intervals))
+        bars_by_interval: dict[str, list[HistoricalBar]] = {}
+        notes: list[str] = []
+        for interval, bars, note in results:
+            bars_by_interval[interval] = bars
+            if note:
+                notes.append(note)
+        return bars_by_interval, notes
 
     @staticmethod
     def _quantity_for_notional(max_notional: Decimal, price: Decimal) -> Decimal:

@@ -78,6 +78,7 @@ export type AgentOpinion = {
   blocking_concerns: string[];
   suggested_max_position_pct: number | null;
   suggested_stop_loss_pct: number | null;
+  prompt_version: string | null;
 };
 
 export type RiskCheck = {
@@ -96,6 +97,7 @@ export type ModelUsageEvent = {
   completion_tokens: number;
   total_tokens: number;
   estimated: boolean;
+  prompt_version: string | null;
 };
 
 export type ConferenceDetail = {
