@@ -15,27 +15,25 @@ import {
 } from "lucide-react";
 import {
   ConferenceDetail,
-  MarketProposal,
-  ProposalRunResponse,
+  DecisionRunResponse,
   RunConferenceResponse,
   Settings as AppSettings,
   api
 } from "../api/client";
-import { displayValue, formatReason } from "../lib/format";
+import { displayValue } from "../lib/format";
 
 type DecisionStage = "idle" | "scan" | "select" | "conference" | "summary" | "done" | "error";
 
 type DecisionResult = {
-  proposalRun: ProposalRunResponse;
-  selectedProposal: MarketProposal;
+  decision: DecisionRunResponse;
   run: RunConferenceResponse;
   conference: ConferenceDetail;
 };
 
 const stages: Array<{ key: DecisionStage; label: string }> = [
-  { key: "scan", label: "脚本扫描" },
-  { key: "select", label: "一审筛选" },
-  { key: "conference", label: "会议" },
+  { key: "scan", label: "持仓与候选" },
+  { key: "select", label: "一审计划" },
+  { key: "conference", label: "组合会议" },
   { key: "summary", label: "风控" }
 ];
 
@@ -60,17 +58,13 @@ function currentStageLabel(stage: DecisionStage): string {
   return stages.find((item) => item.key === stage)?.label ?? "准备";
 }
 
-function topRiskReason(detail: ConferenceDetail): string {
-  const failed = detail.risk_decision?.checks.find((check) => !check.passed);
-  return formatReason(failed?.reason ?? detail.risk_decision?.reason ?? detail.consensus_result.consensus_reason);
-}
-
 function orderOutcome(result: DecisionResult): string {
-  if (result.run.order_id) return `已生成模拟订单 ${result.run.order_id}`;
-  if (result.run.live_preview_id) return "已生成实盘预览，等待人工确认";
-  if (result.run.final_action === "HOLD") return "结论为观望，未生成订单";
+  const plan = result.decision.decision_plan;
+  if (plan.order_id) return `已生成模拟订单 ${plan.order_id}`;
+  if (plan.live_preview_id) return "已生成实盘预览，等待人工确认";
+  if (plan.final_action === "HOLD") return "结论为观望，未生成订单";
   if (!result.run.consensus_reached) return "未达成共识，未生成订单";
-  if (!result.run.risk_approved) return "风控阻断，未生成订单";
+  if (!plan.risk_approved) return "风控阻断，未生成订单";
   return "未生成订单";
 }
 
@@ -149,8 +143,7 @@ export default function DecisionCenterPage() {
       const conference = await conferenceRequest;
       await invalidateAfterDecision(decision.proposal_run.proposal_run_id);
       setResult({
-        proposalRun: decision.proposal_run,
-        selectedProposal: decision.selected_proposal,
+        decision,
         run: decision.conference,
         conference
       });
@@ -169,8 +162,12 @@ export default function DecisionCenterPage() {
 
   const activeIndex = currentStageIndex(stage);
   const tokenUsage = result?.conference.model_usage;
-  const riskApproved = result?.conference.risk_decision?.approved ?? result?.run.risk_approved ?? false;
-  const shouldOpenOrders = Boolean(result?.run.order_id || result?.run.live_preview_id || pendingPreviews.length > 0);
+  const riskApproved = result?.decision.decision_plan.risk_approved ?? false;
+  const shouldOpenOrders = Boolean(
+    result?.decision.decision_plan.order_id ||
+      result?.decision.decision_plan.live_preview_id ||
+      pendingPreviews.length > 0
+  );
 
   return (
     <div className="simple-page">
@@ -180,14 +177,14 @@ export default function DecisionCenterPage() {
             <Sparkles size={15} />
             简单模式
           </span>
-          <h2>从市场候选池到会议决策</h2>
-          <p>系统先用候选池脚本扫描市场，一审筛出 3 到 5 个可提交会议的股票，再把优先级最高的一项送入会议决定行为。</p>
+          <h2>从账户状态到组合决策</h2>
+          <p>系统先复盘当前持仓，再扫描市场候选池，一审形成计划，最后由会议决定今天是否买入、卖出、减仓或观望。</p>
         </div>
 
         <form className="simple-run-box" onSubmit={runDecision}>
           <div className="simple-pipeline-card">
             <strong>自动流程</strong>
-            <span>候选池脚本 / 一审提案 / Agent 会议 / 风控与订单路由</span>
+            <span>持仓复盘 / 候选池脚本 / 组合会议 / 风控与订单路由</span>
           </div>
           <button className="primary-action simple-main-action" type="submit" disabled={isRunning}>
             {isRunning ? <Loader2 size={20} className="spin-icon" /> : <Sparkles size={20} />}
@@ -199,7 +196,7 @@ export default function DecisionCenterPage() {
               <span>
                 {error
                   ? error
-                  : "系统正在扫描候选池、运行一审并提交会议。"}
+                  : "系统正在复盘持仓、扫描候选池、生成计划并提交会议。"}
               </span>
             </div>
           )}
@@ -232,18 +229,18 @@ export default function DecisionCenterPage() {
           <div className="simple-result-main">
             <span>最终结论</span>
             <h3>
-              {result.selectedProposal.symbol}：{displayValue(result.run.final_action)}
+              {result.decision.decision_plan.selected_symbol}：{result.decision.decision_plan.selected_intent}
             </h3>
-            <p>{topRiskReason(result.conference)}</p>
+            <p>{result.decision.decision_plan.summary}</p>
           </div>
           <div className="simple-result-facts">
             <div>
-              <span>扫描池</span>
-              <strong>{result.proposalRun.candidate_count} 个</strong>
+              <span>持仓复盘</span>
+              <strong>{result.decision.decision_plan.portfolio_review_count} 项</strong>
             </div>
             <div>
-              <span>一审提案</span>
-              <strong>{result.proposalRun.proposals.length} 个</strong>
+              <span>新机会</span>
+              <strong>{result.decision.decision_plan.opportunity_count} 个</strong>
             </div>
             <div>
               <span>会议共识</span>
@@ -255,12 +252,12 @@ export default function DecisionCenterPage() {
             </div>
           </div>
           <div className="simple-proposal-strip">
-            <span>一审入围</span>
+            <span>计划候选</span>
             <div>
-              {result.proposalRun.proposals.map((proposal) => (
-                <Link to="/advanced" key={proposal.symbol}>
-                  <strong>{proposal.symbol}</strong>
-                  <small>{displayValue(proposal.proposed_action)} · {Math.round(proposal.confidence * 100)}%</small>
+              {result.decision.decision_plan.items.slice(0, 6).map((item) => (
+                <Link to="/advanced" key={`${item.source}-${item.symbol}`}>
+                  <strong>{item.symbol}</strong>
+                  <small>{item.intent} · {displayValue(item.proposed_action)}</small>
                 </Link>
               ))}
             </div>
@@ -268,7 +265,10 @@ export default function DecisionCenterPage() {
           <div className="simple-order-outcome">
             <span>订单路由</span>
             <strong>{orderOutcome(result)}</strong>
-            <small>{tokenUsage ? `模型用量 ${tokenUsage.total_tokens.toLocaleString()} token` : "模型用量未记录"}</small>
+            <small>
+              {result.decision.decision_plan.next_step}
+              {tokenUsage ? ` · 模型用量 ${tokenUsage.total_tokens.toLocaleString()} token` : ""}
+            </small>
           </div>
           <div className="simple-result-actions">
             {shouldOpenOrders && (
@@ -294,7 +294,7 @@ export default function DecisionCenterPage() {
           <div className="simple-readonly-field">
             <span>候选池来源</span>
             <strong>后端候选池脚本</strong>
-            <small>默认不需要输入股票代码。脚本会提供基础市场池，当前包含主要 ETF 和高流动性美股；真实数据模式下会用券商行情逐个扫描。</small>
+            <small>默认不需要输入股票代码。系统会先复盘当前持仓，再扫描基础市场池；真实数据模式下会用券商行情逐个扫描。</small>
           </div>
           <label>
             <span>一审提案数量</span>

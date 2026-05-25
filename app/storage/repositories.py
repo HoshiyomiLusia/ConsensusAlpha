@@ -241,6 +241,11 @@ def list_paper_orders(db: Session, limit: int = 100) -> list[PaperOrderTable]:
     return list(db.scalars(stmt))
 
 
+def list_paper_positions(db: Session) -> list[PaperPositionTable]:
+    stmt = select(PaperPositionTable).order_by(PaperPositionTable.symbol)
+    return list(db.scalars(stmt))
+
+
 def list_live_previews(db: Session, limit: int = 100) -> list[LiveOrderPreviewTable]:
     stmt = select(LiveOrderPreviewTable).order_by(desc(LiveOrderPreviewTable.created_at)).limit(limit)
     return list(db.scalars(stmt))

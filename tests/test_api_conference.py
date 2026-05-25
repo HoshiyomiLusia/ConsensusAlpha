@@ -56,6 +56,10 @@ def test_run_conference_api_creates_paper_order_with_unanimous_mock_buy():
             orders = client.get("/orders/paper")
             assert orders.status_code == 200
             assert any(order["order_id"] == data["order_id"] for order in orders.json())
+
+            positions = client.get("/portfolio/positions")
+            assert positions.status_code == 200
+            assert any(position["symbol"] == symbol for position in positions.json())
     finally:
         app.dependency_overrides.clear()
 

@@ -8,7 +8,8 @@ from app.conference.models import ConferenceRunRequest
 from app.conference.orchestrator import ConferenceOrchestrator
 from app.core.config import Settings
 from app.decision.models import DecisionRunRequest, DecisionRunResponse
-from app.proposals.models import MarketProposal, ProposalRunRequest
+from app.decision.service import build_decision_plan, choose_plan_proposal, review_portfolio
+from app.proposals.models import ProposalRunRequest
 from app.proposals.service import MarketProposalEngine
 from app.storage.database import get_db
 from app.storage.repositories import create_audit_event, save_proposal_run
@@ -34,6 +35,13 @@ async def run_decision(
     if not proposal_result.proposals:
         raise HTTPException(status_code=422, detail="no proposal generated")
 
+    portfolio_review = await review_portfolio(
+        db=db,
+        settings=settings,
+        provider=provider,
+        max_notional=request.max_notional,
+    )
+
     save_proposal_run(db, request=proposal_request, result=proposal_result)
     create_audit_event(
         db,
@@ -53,11 +61,17 @@ async def run_decision(
     )
     db.commit()
 
-    selected = select_decision_proposal(proposal_result.proposals)
+    selected, selected_intent = choose_plan_proposal(
+        portfolio_reviews=portfolio_review,
+        opportunity_proposals=proposal_result.proposals,
+    )
+    selected_notional = selected.suggested_max_notional or request.max_notional
+    if selected_notional <= 0:
+        selected_notional = request.max_notional
     conference_request = ConferenceRunRequest(
         symbol=selected.symbol,
         asset_type=selected.asset_type,
-        max_notional=selected.suggested_max_notional or request.max_notional,
+        max_notional=selected_notional,
         order_type=request.order_type,
         limit_price=request.limit_price,
         mock_agent_action=selected.proposed_action,
@@ -87,29 +101,39 @@ async def run_decision(
             "source": "decision.run",
         },
     )
+    decision_plan = build_decision_plan(
+        portfolio_reviews=portfolio_review,
+        opportunity_proposals=proposal_result.proposals,
+        selected=selected,
+        selected_intent=selected_intent,
+        conference=conference_result,
+    )
     create_audit_event(
         db,
         actor=audit_actor(http_request),
         action="decision.run",
         entity_type="decision",
-        entity_id=conference_result.conference_id,
-        summary=f"一键决策完成：{conference_result.symbol} {conference_result.final_action}",
+        entity_id=decision_plan.plan_id,
+        summary=f"组合决策完成：{decision_plan.summary}",
         payload={
             "proposal_run_id": proposal_result.proposal_run_id,
+            "plan_id": decision_plan.plan_id,
+            "portfolio_review_count": len(portfolio_review),
+            "opportunity_count": len(proposal_result.proposals),
+            "selected_source": decision_plan.selected_source,
             "selected_symbol": selected.symbol,
             "selected_action": selected.proposed_action,
             "conference_id": conference_result.conference_id,
             "order_id": conference_result.order_id,
             "live_preview_id": conference_result.live_preview_id,
+            "next_step": decision_plan.next_step,
         },
     )
     db.commit()
     return DecisionRunResponse(
         proposal_run=proposal_result,
+        portfolio_review=portfolio_review,
+        decision_plan=decision_plan,
         selected_proposal=selected,
         conference=conference_result,
     )
-
-
-def select_decision_proposal(proposals: list[MarketProposal]) -> MarketProposal:
-    return next((proposal for proposal in proposals if proposal.proposed_action != "HOLD"), proposals[0])

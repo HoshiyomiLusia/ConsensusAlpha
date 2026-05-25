@@ -312,8 +312,62 @@ export type DecisionRunPayload = {
   limit_price?: string | null;
 };
 
+export type PortfolioReviewAction = "KEEP" | "ADD" | "REDUCE" | "EXIT" | "STOP_LOSS" | "TAKE_PROFIT";
+
+export type PortfolioReviewItem = {
+  symbol: string;
+  asset_type: "equity" | "etf";
+  quantity: string;
+  average_price: string;
+  market_value: string;
+  last_price: string;
+  unrealized_pnl_pct: string;
+  review_action: PortfolioReviewAction;
+  proposed_action: Action;
+  priority_score: number;
+  thesis: string;
+  risk_notes: string[];
+  suggested_max_notional: string;
+};
+
+export type DecisionPlanItem = {
+  source: "portfolio_review" | "opportunity_scan";
+  symbol: string;
+  asset_type: "equity" | "etf";
+  intent: string;
+  proposed_action: Action;
+  confidence: number;
+  priority_score: number;
+  thesis: string;
+  suggested_max_notional: string;
+  conference_id: string | null;
+  final_action: Action | null;
+  risk_approved: boolean | null;
+  order_id: string | null;
+  live_preview_id: string | null;
+};
+
+export type DecisionPlan = {
+  plan_id: string;
+  summary: string;
+  next_step: string;
+  selected_source: "portfolio_review" | "opportunity_scan";
+  selected_symbol: string;
+  selected_intent: string;
+  final_action: Action;
+  order_required: boolean;
+  risk_approved: boolean;
+  order_id: string | null;
+  live_preview_id: string | null;
+  portfolio_review_count: number;
+  opportunity_count: number;
+  items: DecisionPlanItem[];
+};
+
 export type DecisionRunResponse = {
   proposal_run: ProposalRunResponse;
+  portfolio_review: PortfolioReviewItem[];
+  decision_plan: DecisionPlan;
   selected_proposal: MarketProposal;
   conference: RunConferenceResponse;
 };

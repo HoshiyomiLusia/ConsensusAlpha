@@ -13,6 +13,7 @@ from app.core.time import utc_now
 from app.execution.paper import PaperExecutor
 from app.market_data.features import compute_market_context
 from app.market_data.models import HistoricalBar, MarketContext, MarketSnapshot
+from app.portfolio.service import get_effective_account, get_effective_positions
 from app.risk.models import RiskInput
 from app.risk.service import RiskService
 from app.storage.repositories import (
@@ -141,8 +142,8 @@ class ConferenceOrchestrator:
                 positions=[],
             )
         else:
-            account = await self.provider.get_account_summary()
-            positions = await self.provider.get_positions()
+            account = await get_effective_account(db=db, settings=self.settings, provider=self.provider)
+            positions = await get_effective_positions(db=db, settings=self.settings, provider=self.provider)
             risk_decision = self.risk_service.evaluate(
                 db=db,
                 risk_input=RiskInput(
