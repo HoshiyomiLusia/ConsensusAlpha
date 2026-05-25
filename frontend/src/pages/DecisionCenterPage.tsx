@@ -177,42 +177,6 @@ export default function DecisionCenterPage() {
             <strong>自动流程</strong>
             <span>候选池脚本 / 一审提案 / Agent 会议 / 风控与订单路由</span>
           </div>
-          <details className="simple-options">
-            <summary>扫描与风控设置</summary>
-            <div>
-              <div className="simple-readonly-field">
-                <span>候选池来源</span>
-                <strong>后端候选池脚本</strong>
-                <small>默认不需要输入股票代码。脚本会提供基础市场池，当前包含主要 ETF 和高流动性美股；真实数据模式下会用券商行情逐个扫描。</small>
-              </div>
-              <label>
-                <span>一审提案数量</span>
-                <select value={maxProposals} onChange={(event) => setMaxProposals(event.target.value)}>
-                  <option value="3">3 个</option>
-                  <option value="4">4 个</option>
-                  <option value="5">5 个</option>
-                </select>
-              </label>
-              <label>
-                <span>单次决策金额上限</span>
-                <input value={maxNotional} onChange={(event) => setMaxNotional(event.target.value)} inputMode="decimal" />
-                <small className="field-help">这不是“立刻投入这么多钱”，而是风控和订单数量计算使用的上限。真实下单仍需要订单页人工确认。</small>
-              </label>
-              <label>
-                <span>自定义扫描列表</span>
-                <textarea
-                  value={customUniverse}
-                  onChange={(event) => setCustomUniverse(event.target.value)}
-                  placeholder="留空则使用后端候选池脚本。需要覆盖时，用逗号或换行输入股票代码。"
-                  rows={3}
-                />
-              </label>
-              <label className="checkbox-row">
-                <input type="checkbox" checked={useLlm} onChange={(event) => setUseLlm(event.target.checked)} />
-                <span>一审阶段可用时使用模型筛选提案，否则回退到规则筛选。</span>
-              </label>
-            </div>
-          </details>
           <button className="primary-action simple-main-action" type="submit" disabled={isRunning}>
             {isRunning ? <Loader2 size={20} className="spin-icon" /> : <Sparkles size={20} />}
             {isRunning ? "正在处理" : "开始自动决策"}
@@ -311,6 +275,43 @@ export default function DecisionCenterPage() {
           </div>
         </section>
       )}
+
+      <details className="simple-options">
+        <summary>扫描与风控设置</summary>
+        <div>
+          <div className="simple-readonly-field">
+            <span>候选池来源</span>
+            <strong>后端候选池脚本</strong>
+            <small>默认不需要输入股票代码。脚本会提供基础市场池，当前包含主要 ETF 和高流动性美股；真实数据模式下会用券商行情逐个扫描。</small>
+          </div>
+          <label>
+            <span>一审提案数量</span>
+            <select value={maxProposals} onChange={(event) => setMaxProposals(event.target.value)}>
+              <option value="3">3 个</option>
+              <option value="4">4 个</option>
+              <option value="5">5 个</option>
+            </select>
+          </label>
+          <label>
+            <span>单次决策金额上限</span>
+            <input value={maxNotional} onChange={(event) => setMaxNotional(event.target.value)} inputMode="decimal" />
+            <small className="field-help">这不是“立刻投入这么多钱”，而是风控和订单数量计算使用的上限。真实下单仍需要订单页人工确认。</small>
+          </label>
+          <label>
+            <span>自定义扫描列表</span>
+            <textarea
+              value={customUniverse}
+              onChange={(event) => setCustomUniverse(event.target.value)}
+              placeholder="留空则使用后端候选池脚本。需要覆盖时，用逗号或换行输入股票代码。"
+              rows={3}
+            />
+          </label>
+          <label className="checkbox-row">
+            <input type="checkbox" checked={useLlm} onChange={(event) => setUseLlm(event.target.checked)} />
+            <span>一审阶段可用时使用模型筛选提案，否则回退到规则筛选。</span>
+          </label>
+        </div>
+      </details>
 
       <section className="simple-status-grid" aria-label="当前状态">
         <Link to="/settings">
