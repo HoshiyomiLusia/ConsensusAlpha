@@ -1,0 +1,38 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://consensus:consensus@postgres:5432/consensus_alpha
+      BROKER_PROVIDER: mock
+      TRADING_MODE: paper
+      ENABLE_LIVE_TRADING: "false"
+    depends_on:
+      - postgres
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - api
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: consensus_alpha
+      POSTGRES_USER: consensus
+      POSTGRES_PASSWORD: consensus
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
