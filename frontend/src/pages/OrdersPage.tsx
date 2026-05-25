@@ -1,12 +1,13 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, RefreshCcw, ShieldCheck, X } from "lucide-react";
-import { api, LivePreview } from "../api/client";
+import { api, LivePreview, Settings } from "../api/client";
 import { StatusBadge } from "../components/Badges";
 import { displayValue, formatSettingKey } from "../lib/format";
 
 export default function OrdersPage() {
   const queryClient = useQueryClient();
+  const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings, staleTime: 30_000 });
   const paperOrders = useQuery({ queryKey: ["paper-orders"], queryFn: api.paperOrders, refetchInterval: 20_000 });
   const livePreviews = useQuery({ queryKey: ["live-previews"], queryFn: api.livePreviews, refetchInterval: 20_000 });
   const readiness = useQuery({ queryKey: ["production-readiness"], queryFn: api.productionReadiness, refetchInterval: 30_000 });
@@ -29,45 +30,7 @@ export default function OrdersPage() {
         </button>
       </section>
 
-      <section className={readiness.data?.ready ? "panel readiness-panel readiness-ok" : "panel readiness-panel readiness-blocked"}>
-        <div className="panel-heading">
-          <div>
-            <h3>真实交易上线状态</h3>
-            <p>实盘确认前必须通过这些门禁；模拟订单不受影响。</p>
-          </div>
-          <StatusBadge value={readiness.data?.ready ? "已通过" : "未通过"} tone={readiness.data?.ready ? "ok" : "danger"} />
-        </div>
-        {readiness.data && (
-          <div className="readiness-summary">
-            <span>
-              <ShieldCheck size={16} />
-              阻断项 {readiness.data.checks.filter((check) => check.severity === "blocker" && !check.passed).length} 个
-            </span>
-            <span>
-              <AlertTriangle size={16} />
-              警告项 {readiness.data.checks.filter((check) => check.severity === "warning" && !check.passed).length} 个
-            </span>
-          </div>
-        )}
-        {readiness.data && !readiness.data.ready && (
-          <details className="setup-help readiness-details">
-            <summary>查看阻断项</summary>
-            <div className="readiness-list">
-              {readiness.data.checks
-                .filter((check) => !check.passed)
-                .map((check) => (
-                  <div className="check-row" key={check.name}>
-                    <StatusBadge value={check.severity === "warning" ? "警告" : "阻断"} tone={check.severity === "warning" ? "warn" : "danger"} />
-                    <div>
-                      <strong>{formatSettingKey(check.name)}</strong>
-                      <span>{check.summary}</span>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </details>
-        )}
-      </section>
+      <OrderModePanel settings={settings.data} readiness={readiness.data} />
 
       <section className="panel">
         <h3>实盘预览</h3>
@@ -114,6 +77,106 @@ export default function OrdersPage() {
       </section>
 
       {confirming && <ConfirmModal preview={confirming} onClose={() => setConfirming(null)} />}
+    </div>
+  );
+}
+
+function OrderModePanel({
+  settings,
+  readiness
+}: {
+  settings?: Settings;
+  readiness?: Awaited<ReturnType<typeof api.productionReadiness>>;
+}) {
+  const isLiveMode = Boolean(settings?.trading_mode === "live" && settings.enable_live_trading);
+  const isProductionCapital = Boolean(settings?.app_env?.toLowerCase() === "production" || settings?.webull_env === "production");
+  const showProductionGate = isLiveMode || isProductionCapital;
+  const failedChecks = readiness?.checks.filter((check) => !check.passed) ?? [];
+  const blockerCount = failedChecks.filter((check) => check.severity === "blocker").length;
+  const warningCount = failedChecks.filter((check) => check.severity === "warning").length;
+
+  if (!showProductionGate) {
+    return (
+      <section className="panel readiness-panel readiness-test">
+        <div className="panel-heading">
+          <div>
+            <h3>测试环境可用</h3>
+            <p>当前用于模拟数据和纸面交易测试；真实资金上线检查不会阻断这个流程。</p>
+          </div>
+          <StatusBadge value="可测试" tone="ok" />
+        </div>
+        <div className="readiness-summary">
+          <span>
+            <ShieldCheck size={16} />
+            数据：{settings?.broker_provider === "webull" ? "真实数据通道" : "模拟数据"}
+          </span>
+          <span>
+            <ShieldCheck size={16} />
+            执行：纸面交易
+          </span>
+        </div>
+        {readiness && (
+          <details className="setup-help readiness-details">
+            <summary>真实交易上线检查</summary>
+            <p className="readiness-note">这些项目只用于判断能不能接入真实资金交易。测试 mock、UAT 和纸面订单时不用处理。</p>
+            <ReadinessList failedChecks={failedChecks} />
+          </details>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <section className={readiness?.ready ? "panel readiness-panel readiness-ok" : "panel readiness-panel readiness-blocked"}>
+      <div className="panel-heading">
+        <div>
+          <h3>真实交易上线状态</h3>
+          <p>只有真实资金订单需要通过这些门禁；模拟订单不受影响。</p>
+        </div>
+        <StatusBadge value={readiness?.ready ? "已通过" : "未通过"} tone={readiness?.ready ? "ok" : "danger"} />
+      </div>
+      {readiness && (
+        <div className="readiness-summary">
+          <span>
+            <ShieldCheck size={16} />
+            阻断项 {blockerCount} 个
+          </span>
+          <span>
+            <AlertTriangle size={16} />
+            警告项 {warningCount} 个
+          </span>
+        </div>
+      )}
+      {readiness && !readiness.ready && (
+        <details className="setup-help readiness-details">
+          <summary>查看真实交易阻断项</summary>
+          <ReadinessList failedChecks={failedChecks} />
+        </details>
+      )}
+    </section>
+  );
+}
+
+function ReadinessList({
+  failedChecks
+}: {
+  failedChecks: Awaited<ReturnType<typeof api.productionReadiness>>["checks"];
+}) {
+  if (failedChecks.length === 0) {
+    return <p className="readiness-note">没有未通过项目。</p>;
+  }
+
+  return (
+    <div className="readiness-list">
+      {failedChecks.map((check) => (
+        <div className="check-row" key={check.name}>
+          <StatusBadge value={check.severity === "warning" ? "警告" : "阻断"} tone={check.severity === "warning" ? "warn" : "danger"} />
+          <div>
+            <strong>{formatSettingKey(check.name)}</strong>
+            <span>{check.summary}</span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
