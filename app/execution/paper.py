@@ -24,26 +24,26 @@ class PaperExecutor:
         notional = fill_price * order.quantity
         order_id = new_id("paper")
         now = utc_now()
-        db.add(
-            PaperOrderTable(
-                id=order_id,
-                client_order_id=order.client_order_id,
-                conference_id=conference_id,
-                symbol=order.symbol.upper(),
-                side=order.side,
-                quantity=str(order.quantity),
-                order_type=order.order_type,
-                limit_price=str(order.limit_price) if order.limit_price else None,
-                fill_price=str(fill_price),
-                notional=str(notional),
-                status="FILLED",
-                mode="paper",
-                raw_payload={
-                    "order": order.model_dump(mode="json"),
-                    "snapshot": snapshot.model_dump(mode="json"),
-                },
-            )
+        order_row = PaperOrderTable(
+            id=order_id,
+            client_order_id=order.client_order_id,
+            conference_id=conference_id,
+            symbol=order.symbol.upper(),
+            side=order.side,
+            quantity=str(order.quantity),
+            order_type=order.order_type,
+            limit_price=str(order.limit_price) if order.limit_price else None,
+            fill_price=str(fill_price),
+            notional=str(notional),
+            status="FILLED",
+            mode="paper",
+            raw_payload={
+                "order": order.model_dump(mode="json"),
+                "snapshot": snapshot.model_dump(mode="json"),
+            },
         )
+        db.add(order_row)
+        db.flush()
         db.add(
             PaperFillTable(
                 id=new_id("fill"),
