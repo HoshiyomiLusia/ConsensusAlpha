@@ -1,6 +1,7 @@
 services:
   test-api:
-    build: .
+    build:
+      context: https://github.com/HoshiyomiLusia/ConsensusAlpha.git#main
     env_file:
       - .env.test
     ports:
@@ -15,14 +16,12 @@ services:
       retries: 5
 
   test-frontend:
-    image: node:20-alpine
-    working_dir: /app
-    command: sh -c "corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm install --frozen-lockfile && VITE_API_BASE_URL=http://127.0.0.1:8001 pnpm dev --host 0.0.0.0 --port 5174"
+    build:
+      context: https://github.com/HoshiyomiLusia/ConsensusAlpha.git#main:frontend
+      args:
+        VITE_API_BASE_URL: http://127.0.0.1:8001
     ports:
-      - "5174:5174"
-    volumes:
-      - ./frontend:/app
-      - test_frontend_node_modules:/app/node_modules
+      - "5174:80"
     depends_on:
       test-api:
         condition: service_healthy
@@ -43,4 +42,3 @@ services:
 
 volumes:
   test_postgres_data:
-  test_frontend_node_modules:

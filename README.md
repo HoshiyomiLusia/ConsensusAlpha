@@ -17,6 +17,14 @@ Default mode is safe: mock broker, mock LLM, paper trading, and live trading dis
 
 ## Quick Start
 
+Docker environments build from GitHub `main`, so running containers do not bind to local source files:
+
+```bash
+docker compose -p consensusalpha-main up --build -d
+```
+
+Open `http://127.0.0.1:5173`.
+
 Backend:
 
 ```bash
@@ -67,7 +75,7 @@ UAT/test Docker environment:
 
 ```bash
 cp .env.test.example .env.test
-docker compose -f docker-compose.test.yml up --build
+docker compose -p consensusalpha-test -f docker-compose.test.yml up --build -d
 ```
 
 Test console: `http://127.0.0.1:5174`; test API: `http://127.0.0.1:8001`.
