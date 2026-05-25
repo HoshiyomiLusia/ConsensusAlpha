@@ -51,6 +51,10 @@ function currentStageIndex(stage: DecisionStage): number {
   return stages.findIndex((item) => item.key === stage);
 }
 
+function currentStageLabel(stage: DecisionStage): string {
+  return stages.find((item) => item.key === stage)?.label ?? "准备";
+}
+
 function topRiskReason(detail: ConferenceDetail): string {
   const failed = detail.risk_decision?.checks.find((check) => !check.passed);
   return formatReason(failed?.reason ?? detail.risk_decision?.reason ?? detail.consensus_result.consensus_reason);
@@ -178,6 +182,18 @@ export default function DecisionCenterPage() {
             {isRunning ? <Loader2 size={20} className="spin-icon" /> : <Sparkles size={20} />}
             {isRunning ? "正在处理" : "开始自动决策"}
           </button>
+          {(isRunning || result || error) && (
+            <div className={error ? "simple-inline-feedback danger" : "simple-inline-feedback"}>
+              <strong>{error ? "运行失败" : isRunning ? `正在执行：${currentStageLabel(stage)}` : "决策完成"}</strong>
+              <span>
+                {error
+                  ? error
+                  : result
+                    ? `${result.selectedProposal.symbol} 进入会议，结论为 ${displayValue(result.run.final_action)}。扫描 ${result.proposalRun.candidate_count} 个标的，一审 ${result.proposalRun.proposals.length} 个提案。`
+                    : "系统正在扫描候选池并运行一审。"}
+              </span>
+            </div>
+          )}
           <details className="simple-options">
             <summary>扫描与风控设置</summary>
             <div>
