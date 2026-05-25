@@ -524,6 +524,7 @@ a {
 
 .badge {
   min-height: 26px;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -535,6 +536,9 @@ a {
   color: #334155;
   font-size: 12px;
   font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .badge-ok {
@@ -1498,12 +1502,14 @@ textarea {
 
 .check-row {
   justify-content: flex-start;
+  align-items: flex-start;
   padding: 10px;
   border: 1px solid #e1e7ee;
   border-radius: 8px;
 }
 
 .check-row div {
+  min-width: 0;
   display: grid;
   gap: 3px;
 }
