@@ -1,23 +1,128 @@
 # ConsensusAlpha
 
-ConsensusAlpha is a full-stack AI-assisted trading research console for US stocks and ETFs. It scans market candidates, runs a multi-agent model conference, evaluates strict consensus, applies deterministic risk gates, and then routes approved decisions to paper execution or protected live-order preview.
+ConsensusAlpha is an AI-assisted decision console for US stocks and ETFs. It scans a candidate universe, shortlists proposals, runs a multi-agent conference, applies deterministic risk gates, and routes approved decisions to paper execution or a guarded live-order preview.
 
-Default mode is safe: mock broker, mock LLM, paper trading, and live trading disabled.
+## Project Overview
 
-## Features
+ConsensusAlpha is built for a simple external workflow: configure once, generate a decision, inspect the final result, and confirm only when a real order is explicitly allowed.
 
-- FastAPI backend with SQLite/PostgreSQL storage
-- React/Vite TypeScript operations console
-- One-click decision flow: proposal scan -> agent conference -> consensus -> risk gate -> order result
-- Mock broker and Webull provider integration
-- Mock LLM by default, configurable multi-model agents
-- Paper execution and guarded live-order preview
-- Production readiness gate for real-money trading
-- Audit trail and model token usage tracking
+Main components:
 
-## Quick Start
+- FastAPI backend with SQLite or PostgreSQL storage.
+- React/Vite TypeScript console with simple and advanced views.
+- Candidate scan, proposal review, agent conference, consensus, risk checks, and order routing.
+- Mock broker and mock LLM defaults, so the app can run without external keys.
+- Webull provider integration for configured test or production broker access.
+- Paper execution, protected live-order previews, audit events, replay scripts, and model token usage tracking.
 
-Docker environments build from GitHub `main`, so running containers do not bind to local source files:
+Default mode is safe: mock data, mock models, paper trading, and live trading disabled.
+
+## Example
+
+![ConsensusAlpha console](frontend-smoke.png)
+
+## Environment Dependencies
+
+Required tools:
+
+- Docker with Docker Compose for the recommended run path.
+- Python `>=3.11,<3.14` for local backend development and tests.
+- Node.js 20 or newer with Corepack/pnpm for local frontend development.
+- `curl` for production preflight checks.
+
+### macOS
+
+Check:
+
+```bash
+docker --version
+docker compose version
+python3 --version
+node --version
+corepack --version
+```
+
+Install path:
+
+```bash
+brew install --cask docker
+brew install python@3.13 node
+corepack enable
+```
+
+Start Docker Desktop before running Compose commands.
+
+### Linux
+
+Check:
+
+```bash
+docker --version
+docker compose version
+python3 --version
+node --version
+corepack --version
+```
+
+Install Docker Engine with the Compose plugin from your distribution or Docker's official repository. Install Python 3.11-3.13 and Node.js 20+, then enable Corepack:
+
+```bash
+corepack enable
+```
+
+### Windows
+
+Check in PowerShell:
+
+```powershell
+docker --version
+docker compose version
+py --version
+node --version
+corepack --version
+```
+
+Install Docker Desktop with WSL 2 enabled, Python 3.11-3.13, and Node.js 20+. Then run:
+
+```powershell
+corepack enable
+```
+
+## Install
+
+Clone the repository:
+
+```bash
+git clone git@github.com:HoshiyomiLusia/ConsensusAlpha.git
+cd ConsensusAlpha
+```
+
+Create local configuration files when needed:
+
+```bash
+cp .env.example .env
+cp .env.test.example .env.test
+cp .env.production.example .env.production
+```
+
+For local backend development:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -e '.[dev]'
+```
+
+For local frontend development:
+
+```bash
+cd frontend
+pnpm install
+```
+
+## Usage
+
+Run the default Docker environment:
 
 ```bash
 docker compose -p consensusalpha-main up --build -d
@@ -25,65 +130,41 @@ docker compose -p consensusalpha-main up --build -d
 
 Open `http://127.0.0.1:5173`.
 
-Backend:
+Run the isolated test/UAT environment:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -e '.[dev]'
-cp .env.example .env
-.venv/bin/uvicorn app.main:app --reload
-```
-
-Frontend:
-
-```bash
-cd frontend
-pnpm install
-pnpm dev
-```
-
-Open:
-
-```text
-http://127.0.0.1:5173
-```
-
-## Tests
-
-```bash
-.venv/bin/python -m pytest
-cd frontend && pnpm build
-```
-
-## Production Notes
-
-Real-money trading is blocked unless `GET /production/readiness` returns `ready=true`.
-
-The readiness gate checks production auth, PostgreSQL, Webull production credentials, live-trading switches, conservative risk limits, daily live-order caps, regular-hours gating, broker connectivity, and real model configuration.
-
-Live orders are never placed directly from model output. The system first creates a live preview, then requires explicit manual confirmation. Production confirmation must match symbol, side, quantity, order type, notional, account, environment, and the required confirmation text.
-
-Production deployment template:
-
-```bash
-cp .env.production.example .env.production
-docker compose -f docker-compose.prod.yml up --build -d
-API_AUTH_TOKEN=... sh scripts/production_preflight.sh
-```
-
-UAT/test Docker environment:
-
-```bash
-cp .env.test.example .env.test
 docker compose -p consensusalpha-test -f docker-compose.test.yml up --build -d
 ```
 
-Test console: `http://127.0.0.1:5174`; test API: `http://127.0.0.1:8001`.
+Open `http://127.0.0.1:5174`. The test API listens on `http://127.0.0.1:8001`.
 
-## Security
+Run local development servers:
 
-Never commit real `.env` files, broker credentials, LLM API keys, account IDs, or database dumps. The repo includes `.env.example` and `.env.production.example` templates only.
+```bash
+.venv/bin/uvicorn app.main:app --reload
+```
 
-## Disclaimer
+```bash
+cd frontend
+pnpm dev
+```
 
-This project is research and execution tooling, not financial advice. Real trading requires broker UAT, credential configuration, operational monitoring, and user responsibility for every confirmed order.
+Verify the project:
+
+```bash
+.venv/bin/python -m pytest
+```
+
+```bash
+cd frontend
+pnpm build
+```
+
+Production deployment uses `docker-compose.prod.yml` and `.env.production`:
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+API_AUTH_TOKEN=CHANGE_ME_LONG_RANDOM_TOKEN sh scripts/production_preflight.sh
+```
+
+Real-money trading remains blocked unless the production readiness endpoint passes. Live orders are created as previews first and require explicit manual confirmation before placement. Do not commit real `.env` files, broker credentials, LLM keys, account IDs, or database dumps.
