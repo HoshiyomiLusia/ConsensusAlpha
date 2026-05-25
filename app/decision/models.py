@@ -9,7 +9,7 @@ from app.proposals.models import MarketProposal, ProposalRunResponse
 
 class DecisionRunRequest(BaseModel):
     symbols: list[str] = Field(default_factory=list)
-    max_proposals: int = Field(default=3, ge=1, le=10)
+    max_proposals: int = Field(default=5, ge=1, le=10)
     max_notional: Decimal = Field(default=Decimal("1000"), gt=0)
     use_llm: bool = True
     order_type: Literal["MARKET", "LIMIT"] = "MARKET"

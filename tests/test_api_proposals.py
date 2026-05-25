@@ -45,3 +45,22 @@ def test_run_proposals_with_mock_provider_returns_candidates():
         assert recent.status_code == 200
         current = next(item for item in recent.json() if item["proposal_run_id"] == data["proposal_run_id"])
         assert current["proposal_count"] == 2
+
+
+def test_run_proposals_uses_default_candidate_pool_when_symbols_are_empty():
+    with TestClient(app) as client:
+        response = client.post(
+            "/proposals/run",
+            json={
+                "symbols": [],
+                "max_proposals": 5,
+                "max_notional": "1000",
+                "use_llm": False,
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["candidate_count"] >= 10
+        assert len(data["proposals"]) == 5
+        assert data["scanned"][0]["symbol"]

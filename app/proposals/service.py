@@ -8,10 +8,8 @@ from app.core.config import AgentLLMConfig, Settings
 from app.core.time import utc_now
 from app.market_data.models import AssetType
 from app.proposals.models import CandidateScanItem, MarketProposal, ProposalRunRequest, ProposalRunResponse
+from app.proposals.universe import infer_asset_type, normalize_symbols
 from app.storage.repositories import new_id
-
-
-ETF_SYMBOLS = {"SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "TLT", "GLD"}
 
 
 class MarketProposalEngine:
@@ -59,24 +57,6 @@ class MarketProposalEngine:
             llm_provider=llm_provider,
             message=message,
         )
-
-
-def normalize_symbols(symbols: list[str]) -> list[str]:
-    seen: set[str] = set()
-    normalized: list[str] = []
-    for raw in symbols:
-        for part in raw.replace("\n", ",").split(","):
-            symbol = part.strip().upper()
-            if not symbol or symbol in seen:
-                continue
-            seen.add(symbol)
-            normalized.append(symbol)
-    return normalized or ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "TSLA", "META", "AMZN", "GOOGL"]
-
-
-def infer_asset_type(symbol: str) -> AssetType:
-    return "etf" if symbol.upper() in ETF_SYMBOLS else "equity"
-
 
 def scan_snapshot(snapshot) -> CandidateScanItem:
     previous = snapshot.previous_close or snapshot.open or snapshot.price
