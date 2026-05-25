@@ -1,21 +1,55 @@
-import { NavLink, Outlet } from "react-router-dom";
-import { Activity, Boxes, ClipboardList, Gauge, Lightbulb, ScrollText, Settings, Sparkles, WalletCards } from "lucide-react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Boxes, Settings, SlidersHorizontal, Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { HealthBadge, KillSwitchBadge, StatusBadge } from "./Badges";
 
 const links = [
-  { to: "/", label: "决策中心", icon: Sparkles },
-  { to: "/dashboard", label: "总览", icon: Gauge },
-  { to: "/proposals", label: "候选提案", icon: Lightbulb },
-  { to: "/run", label: "运行会议", icon: Activity },
-  { to: "/orders", label: "订单", icon: ClipboardList },
-  { to: "/positions", label: "持仓", icon: WalletCards },
-  { to: "/audit", label: "审计", icon: ScrollText },
+  { to: "/", label: "简单", icon: Sparkles },
+  { to: "/advanced", label: "高级", icon: SlidersHorizontal },
   { to: "/settings", label: "设置", icon: Settings }
 ];
 
+const advancedRoutePrefixes = ["/dashboard", "/proposals", "/run", "/orders", "/positions", "/audit", "/conference"];
+
+function pageCopy(pathname: string): { title: string; description: string } {
+  if (pathname.startsWith("/advanced")) {
+    return { title: "高级功能", description: "按需查看详细流程、账户、订单和审计记录。" };
+  }
+  if (pathname.startsWith("/settings") || pathname.startsWith("/setup")) {
+    return { title: "设置", description: "初始化配置、数据源、模型和风控参数。" };
+  }
+  if (pathname.startsWith("/orders")) {
+    return { title: "订单", description: "确认实盘预览或查看模拟订单。" };
+  }
+  if (pathname.startsWith("/positions")) {
+    return { title: "持仓", description: "查看当前数据源返回的账户持仓。" };
+  }
+  if (pathname.startsWith("/proposals")) {
+    return { title: "候选提案", description: "检查市场扫描和提案生成记录。" };
+  }
+  if (pathname.startsWith("/run")) {
+    return { title: "手动会议", description: "指定单个标的运行会议。" };
+  }
+  if (pathname.startsWith("/audit")) {
+    return { title: "审计", description: "复盘配置、会议和订单相关记录。" };
+  }
+  if (pathname.startsWith("/dashboard")) {
+    return { title: "总览", description: "查看系统当前概况。" };
+  }
+  if (pathname.startsWith("/conference")) {
+    return { title: "会议详情", description: "查看 Agent 意见、共识、风控和审计链路。" };
+  }
+  return { title: "简单决策", description: "默认只需要生成决策，然后按提示处理下一步。" };
+}
+
+function isAdvancedRoute(pathname: string): boolean {
+  return advancedRoutePrefixes.some((prefix) => pathname.startsWith(prefix));
+}
+
 export default function Layout() {
+  const location = useLocation();
+  const copy = pageCopy(location.pathname);
   const settings = useQuery({ queryKey: ["settings"], queryFn: api.settings, staleTime: 30_000 });
   const provider = useQuery({
     queryKey: ["provider-status"],
@@ -37,7 +71,17 @@ export default function Layout() {
           {links.map((link) => {
             const Icon = link.icon;
             return (
-              <NavLink key={link.to} to={link.to} className={({ isActive }) => (isActive ? "active" : "")}>
+              <NavLink
+                key={link.to}
+                to={link.to}
+                className={({ isActive }) =>
+                  isActive ||
+                  (link.to === "/advanced" && isAdvancedRoute(location.pathname)) ||
+                  (link.to === "/settings" && location.pathname.startsWith("/setup"))
+                    ? "active"
+                    : ""
+                }
+              >
                 <Icon size={18} />
                 {link.label}
               </NavLink>
@@ -48,8 +92,8 @@ export default function Layout() {
       <main className="main">
         <header className="topbar">
           <div>
-            <h1>交易研究控制台</h1>
-            <p>共识会议、确定性风控和受保护执行。</p>
+            <h1>{copy.title}</h1>
+            <p>{copy.description}</p>
           </div>
           <div className="topbar-badges">
             {provider.data && <HealthBadge healthy={provider.data.healthy} />}
