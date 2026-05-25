@@ -63,6 +63,15 @@ docker compose -f docker-compose.prod.yml up --build -d
 API_AUTH_TOKEN=... sh scripts/production_preflight.sh
 ```
 
+UAT/test Docker environment:
+
+```bash
+cp .env.test.example .env.test
+docker compose -f docker-compose.test.yml up --build
+```
+
+Test console: `http://127.0.0.1:5174`; test API: `http://127.0.0.1:8001`.
+
 ## Security
 
 Never commit real `.env` files, broker credentials, LLM API keys, account IDs, or database dumps. The repo includes `.env.example` and `.env.production.example` templates only.
