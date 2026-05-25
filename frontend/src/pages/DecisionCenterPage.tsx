@@ -21,7 +21,6 @@ import {
   Settings as AppSettings,
   api
 } from "../api/client";
-import { StatusBadge } from "../components/Badges";
 import { displayValue, formatReason } from "../lib/format";
 
 type DecisionStage = "idle" | "scan" | "select" | "conference" | "summary" | "done" | "error";
@@ -182,15 +181,13 @@ export default function DecisionCenterPage() {
             {isRunning ? <Loader2 size={20} className="spin-icon" /> : <Sparkles size={20} />}
             {isRunning ? "正在处理" : "开始自动决策"}
           </button>
-          {(isRunning || result || error) && (
+          {(isRunning || error) && (
             <div className={error ? "simple-inline-feedback danger" : "simple-inline-feedback"}>
-              <strong>{error ? "运行失败" : isRunning ? `正在执行：${currentStageLabel(stage)}` : "决策完成"}</strong>
+              <strong>{error ? "运行失败" : `正在执行：${currentStageLabel(stage)}`}</strong>
               <span>
                 {error
                   ? error
-                  : result
-                    ? `${result.selectedProposal.symbol} 进入会议，结论为 ${displayValue(result.run.final_action)}。扫描 ${result.proposalRun.candidate_count} 个标的，一审 ${result.proposalRun.proposals.length} 个提案。`
-                    : "系统正在扫描候选池并运行一审。"}
+                  : "系统正在扫描候选池、运行一审并提交会议。"}
               </span>
             </div>
           )}
@@ -233,38 +230,14 @@ export default function DecisionCenterPage() {
         </form>
       </section>
 
-      <section className="simple-status-grid" aria-label="当前状态">
-        <Link to="/settings">
-          <span>数据</span>
-          <strong>{dataSourceLabel(settings.data)}</strong>
-          <small>{provider.data?.healthy ? "连接正常" : "需要检查"}</small>
-        </Link>
-        <Link to="/settings">
-          <span>执行</span>
-          <strong>{tradingLabel(settings.data)}</strong>
-          <small>{settings.data?.enable_live_trading ? "实盘仍需人工确认" : "不会真实下单"}</small>
-        </Link>
-        <Link to="/orders">
-          <span>待处理</span>
-          <strong>{pendingPreviews.length} 个</strong>
-          <small>{pendingPreviews.length > 0 ? "有订单预览待确认" : "暂无待确认订单"}</small>
-        </Link>
-        <Link to="/positions">
-          <span>账户</span>
-          <strong>{positions.data?.length ?? 0} 项</strong>
-          <small>当前持仓记录</small>
-        </Link>
-      </section>
-
-      {(isRunning || stage === "done" || stage === "error") && (
+      {(isRunning || stage === "error") && (
         <section className="simple-progress" aria-live="polite">
           <div className="simple-progress-head">
-            <strong>{stage === "done" ? "决策完成" : stage === "error" ? "运行失败" : "正在处理"}</strong>
-            {stage === "done" && <StatusBadge value={result?.run.final_action ?? "HOLD"} tone={result?.run.final_action === "HOLD" ? "warn" : "ok"} />}
+            <strong>{stage === "error" ? "运行失败" : "正在处理"}</strong>
           </div>
           <div className="simple-step-row">
             {stages.map((item, index) => {
-              const completed = stage === "done" || (activeIndex > -1 && index < activeIndex);
+              const completed = activeIndex > -1 && index < activeIndex;
               const active = item.key === stage;
               return (
                 <span className={completed ? "completed" : active ? "active" : ""} key={item.key}>
@@ -338,6 +311,29 @@ export default function DecisionCenterPage() {
           </div>
         </section>
       )}
+
+      <section className="simple-status-grid" aria-label="当前状态">
+        <Link to="/settings">
+          <span>数据</span>
+          <strong>{dataSourceLabel(settings.data)}</strong>
+          <small>{provider.data?.healthy ? "连接正常" : "需要检查"}</small>
+        </Link>
+        <Link to="/settings">
+          <span>执行</span>
+          <strong>{tradingLabel(settings.data)}</strong>
+          <small>{settings.data?.enable_live_trading ? "实盘仍需人工确认" : "不会真实下单"}</small>
+        </Link>
+        <Link to="/orders">
+          <span>待处理</span>
+          <strong>{pendingPreviews.length} 个</strong>
+          <small>{pendingPreviews.length > 0 ? "有订单预览待确认" : "暂无待确认订单"}</small>
+        </Link>
+        <Link to="/positions">
+          <span>账户</span>
+          <strong>{positions.data?.length ?? 0} 项</strong>
+          <small>当前持仓记录</small>
+        </Link>
+      </section>
 
       <section className="simple-action-strip">
         <Link to="/orders">
