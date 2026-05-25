@@ -5,8 +5,9 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md ROADMAP.md ./
 COPY app ./app
+COPY scripts ./scripts
 
 RUN pip install --no-cache-dir --upgrade pip \
   && pip install --no-cache-dir -e .
