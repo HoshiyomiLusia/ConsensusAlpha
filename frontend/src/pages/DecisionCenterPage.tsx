@@ -27,7 +27,7 @@ type DecisionStage = "idle" | "scan" | "select" | "conference" | "summary" | "do
 type DecisionResult = {
   decision: DecisionRunResponse;
   run: RunConferenceResponse;
-  conference: ConferenceDetail;
+  conference: ConferenceDetail | null;
 };
 
 const stages: Array<{ key: DecisionStage; label: string }> = [
@@ -38,6 +38,7 @@ const stages: Array<{ key: DecisionStage; label: string }> = [
 ];
 
 const MIN_STAGE_VISIBLE_MS = 500;
+const DECISION_TIMEOUT_MS = 45_000;
 
 function wait(ms: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
@@ -122,6 +123,8 @@ export default function DecisionCenterPage() {
     event.preventDefault();
     setError(null);
     setResult(null);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), DECISION_TIMEOUT_MS);
 
     try {
       setStage("scan");
@@ -132,9 +135,10 @@ export default function DecisionCenterPage() {
         use_llm: useLlm,
         order_type: "MARKET",
         limit_price: null
-      });
+      }, { signal: controller.signal });
       await wait(MIN_STAGE_VISIBLE_MS);
       const decision = await decisionRequest;
+      window.clearTimeout(timeoutId);
 
       if (decision.proposal_run.proposals.length === 0) {
         throw new Error("没有生成可提交会议的提案。");
@@ -144,20 +148,31 @@ export default function DecisionCenterPage() {
       await wait(MIN_STAGE_VISIBLE_MS);
       setStage("conference");
       await wait(MIN_STAGE_VISIBLE_MS);
-      const conferenceRequest = api.conference(decision.conference.conference_id);
       setStage("summary");
       await wait(MIN_STAGE_VISIBLE_MS);
-      const conference = await conferenceRequest;
-      await invalidateAfterDecision(decision.proposal_run.proposal_run_id);
       setResult({
         decision,
         run: decision.conference,
-        conference
+        conference: null
       });
       setStage("done");
+      void invalidateAfterDecision(decision.proposal_run.proposal_run_id);
+      void api.conference(decision.conference.conference_id)
+        .then((conference) => {
+          setResult((current) => {
+            if (!current || current.run.conference_id !== decision.conference.conference_id) return current;
+            return { ...current, conference };
+          });
+        })
+        .catch(() => undefined);
     } catch (caught) {
+      window.clearTimeout(timeoutId);
       setStage("error");
-      setError(caught instanceof Error ? caught.message : "一键决策运行失败。");
+      if (caught instanceof DOMException && caught.name === "AbortError") {
+        setError("自动决策请求超时。后端可能仍在处理，请刷新订单或稍后重试。");
+      } else {
+        setError(caught instanceof Error ? caught.message : "一键决策运行失败。");
+      }
     }
   }
 
@@ -168,7 +183,7 @@ export default function DecisionCenterPage() {
   }
 
   const activeIndex = currentStageIndex(stage);
-  const tokenUsage = result?.conference.model_usage;
+  const tokenUsage = result?.conference?.model_usage;
   const riskApproved = result?.decision.decision_plan.risk_approved ?? false;
   const shouldOpenOrders = Boolean(
     result?.decision.decision_plan.order_id ||

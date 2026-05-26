@@ -457,10 +457,11 @@ export const api = {
     }),
   providerStatus: () => request<ProviderStatus>("/provider/status"),
   productionReadiness: () => request<ProductionReadiness>("/production/readiness"),
-  runDecision: (payload: DecisionRunPayload) =>
+  runDecision: (payload: DecisionRunPayload, init?: Pick<RequestInit, "signal">) =>
     request<DecisionRunResponse>("/decision/run", {
       method: "POST",
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      ...init
     }),
   proposals: () => request<ProposalListItem[]>("/proposals"),
   proposal: (id: string) => request<ProposalRunDetail>(`/proposals/${id}`),
