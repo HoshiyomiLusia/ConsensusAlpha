@@ -681,6 +681,7 @@ a {
 
 .simple-status-grid a:hover,
 .simple-action-strip a:hover,
+.simple-action-strip button:hover,
 .advanced-tool:hover {
   border-color: #9ab5c4;
 }
@@ -843,6 +844,7 @@ a {
 .simple-result-actions,
 .simple-safety-note,
 .simple-action-strip a,
+.simple-action-strip button,
 .advanced-tool,
 .advanced-intro {
   display: flex;
@@ -856,17 +858,21 @@ a {
 
 .simple-action-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 10px;
 }
 
-.simple-action-strip a {
+.simple-action-strip a,
+.simple-action-strip button {
   min-height: 78px;
   gap: 10px;
   border: 1px solid #e1e7ee;
   border-radius: 8px;
   background: #ffffff;
+  color: inherit;
+  cursor: pointer;
   padding: 12px;
+  text-align: left;
 }
 
 .simple-action-strip strong,

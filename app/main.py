@@ -15,6 +15,7 @@ from app.api.routes_proposals import router as proposals_router
 from app.api.routes_production import router as production_router
 from app.api.routes_provider import router as provider_router
 from app.api.routes_settings import router as settings_router
+from app.api.routes_test import router as test_router
 from app.api.dependencies import require_operator_auth
 from app.brokers.models import BrokerProviderError
 from app.core.logging import configure_logging
@@ -50,6 +51,7 @@ app.include_router(decision_router, dependencies=protected)
 app.include_router(orders_router, dependencies=protected)
 app.include_router(audit_router, dependencies=protected)
 app.include_router(production_router, dependencies=protected)
+app.include_router(test_router, dependencies=protected)
 
 
 @app.exception_handler(BrokerProviderError)

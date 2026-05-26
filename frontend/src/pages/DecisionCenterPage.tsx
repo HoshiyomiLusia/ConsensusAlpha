@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Trash2,
   WalletCards
 } from "lucide-react";
 import {
@@ -128,10 +129,13 @@ export default function DecisionCenterPage() {
   const [result, setResult] = useState<DecisionResult | null>(null);
   const [fallbackResult, setFallbackResult] = useState<FallbackDecisionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resettingTestState, setResettingTestState] = useState(false);
+  const [testResetMessage, setTestResetMessage] = useState<string | null>(null);
   const runningRef = useRef(false);
 
   const isRunning = stage !== "idle" && stage !== "done" && stage !== "error";
   const pendingPreviews = (livePreviews.data ?? []).filter((preview) => preview.status === "PENDING_CONFIRMATION");
+  const canResetTestAccount = settings.data?.app_env !== "production";
 
   async function invalidateAfterDecision(proposalRunId: string) {
     await Promise.all([
@@ -277,6 +281,29 @@ export default function DecisionCenterPage() {
     setResult(null);
     setFallbackResult(null);
     setError(null);
+  }
+
+  async function resetTestAccount() {
+    if (resettingTestState || settings.data?.app_env === "production") return;
+    setResettingTestState(true);
+    setTestResetMessage(null);
+    try {
+      const response = await api.resetTestPaperState();
+      setStage("idle");
+      setResult(null);
+      setFallbackResult(null);
+      setError(null);
+      setTestResetMessage(response.message);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["paper-orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["positions"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit"] })
+      ]);
+    } catch (caught) {
+      setTestResetMessage(caught instanceof Error ? caught.message : "测试账户重置失败。");
+    } finally {
+      setResettingTestState(false);
+    }
   }
 
   const activeIndex = currentStageIndex(stage);
@@ -546,6 +573,15 @@ export default function DecisionCenterPage() {
             <span>展开候选、会议、审计等细节</span>
           </div>
         </Link>
+        {canResetTestAccount && (
+          <button type="button" onClick={resetTestAccount} disabled={resettingTestState}>
+            {resettingTestState ? <Loader2 size={18} className="spin-icon" /> : <Trash2 size={18} />}
+            <div>
+              <strong>重置测试账户</strong>
+              <span>{testResetMessage ?? "清空模拟订单和持仓，方便反复测试"}</span>
+            </div>
+          </button>
+        )}
       </section>
 
       <section className="simple-safety-note">

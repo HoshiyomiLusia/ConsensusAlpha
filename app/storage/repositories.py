@@ -1,7 +1,7 @@
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import desc, select
+from sqlalchemy import delete, desc, select
 from sqlalchemy.orm import Session
 
 from app.conference.models import AgentOpinion
@@ -244,6 +244,19 @@ def list_paper_orders(db: Session, limit: int = 100) -> list[PaperOrderTable]:
 def list_paper_positions(db: Session) -> list[PaperPositionTable]:
     stmt = select(PaperPositionTable).order_by(PaperPositionTable.symbol)
     return list(db.scalars(stmt))
+
+
+def reset_paper_trading_state(db: Session) -> dict[str, int]:
+    deleted: dict[str, int] = {}
+    for name, table in (
+        ("paper_fills", PaperFillTable),
+        ("paper_orders", PaperOrderTable),
+        ("paper_positions", PaperPositionTable),
+    ):
+        result = db.execute(delete(table))
+        deleted[name] = int(result.rowcount or 0)
+    db.flush()
+    return deleted
 
 
 def list_live_previews(db: Session, limit: int = 100) -> list[LiveOrderPreviewTable]:

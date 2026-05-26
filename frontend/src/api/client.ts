@@ -372,6 +372,11 @@ export type DecisionRunResponse = {
   conference: RunConferenceResponse;
 };
 
+export type ResetPaperStateResponse = {
+  message: string;
+  deleted: Record<string, number>;
+};
+
 export type SettingsUpdatePayload = Partial<{
   app_env: string;
   api_auth_enabled: boolean;
@@ -487,5 +492,9 @@ export const api = {
       body: JSON.stringify(body)
     }),
   positions: () => request<Position[]>("/portfolio/positions"),
-  auditEvents: () => request<AuditEvent[]>("/audit")
+  auditEvents: () => request<AuditEvent[]>("/audit"),
+  resetTestPaperState: () =>
+    request<ResetPaperStateResponse>("/test/paper/reset", {
+      method: "POST"
+    })
 };
