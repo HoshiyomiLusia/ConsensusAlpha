@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -128,6 +128,7 @@ export default function DecisionCenterPage() {
   const [result, setResult] = useState<DecisionResult | null>(null);
   const [fallbackResult, setFallbackResult] = useState<FallbackDecisionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const runningRef = useRef(false);
 
   const isRunning = stage !== "idle" && stage !== "done" && stage !== "error";
   const pendingPreviews = (livePreviews.data ?? []).filter((preview) => preview.status === "PENDING_CONFIRMATION");
@@ -186,15 +187,17 @@ export default function DecisionCenterPage() {
 
   async function runDecision(event: FormEvent) {
     event.preventDefault();
+    if (runningRef.current) return;
+    runningRef.current = true;
     setError(null);
     setResult(null);
     setFallbackResult(null);
+    setStage("scan");
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), DECISION_TIMEOUT_MS);
-    const baseline = await enrichBaseline(currentBaseline());
 
     try {
-      setStage("scan");
+      const baseline = await enrichBaseline(currentBaseline());
       const decisionRequest = api.runDecision({
         symbols: parseSymbols(customUniverse),
         max_proposals: Number(maxProposals),
@@ -217,7 +220,13 @@ export default function DecisionCenterPage() {
           controller.abort();
           setFallbackResult(fallback);
           setStage("done");
-          void queryClient.invalidateQueries();
+          void Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["conferences"] }),
+            queryClient.invalidateQueries({ queryKey: ["paper-orders"] }),
+            queryClient.invalidateQueries({ queryKey: ["live-previews"] }),
+            queryClient.invalidateQueries({ queryKey: ["positions"] }),
+            queryClient.invalidateQueries({ queryKey: ["audit"] })
+          ]);
           return;
         }
       }
@@ -257,6 +266,8 @@ export default function DecisionCenterPage() {
       } else {
         setError(caught instanceof Error ? caught.message : "一键决策运行失败。");
       }
+    } finally {
+      runningRef.current = false;
     }
   }
 
