@@ -70,6 +70,11 @@ export default function SetupWizardPage() {
   const canLookupWebullAccounts = Boolean(
     (form.webull_app_key.trim() || hasWebullAppKey) && (form.webull_app_secret.trim() || hasWebullAppSecret)
   );
+  const accountLookupHint =
+    accountLookupMessage ||
+    (canLookupWebullAccounts
+      ? "准备好了。点击按钮后，系统会通过 Webull OpenAPI 自动读取账户 ID。"
+      : "先填写 App Key 和 App Secret，再选择开户地区；日本 Webull 账户请选择“日本 / jp”。");
 
   useEffect(() => {
     if (!settings.data) return;
@@ -246,6 +251,10 @@ export default function SetupWizardPage() {
                   <div className="empty-state">当前选择模拟源，不需要填写 Webull 账户或密钥。</div>
                 ) : (
                 <>
+                  <div className="setup-inline-guide">
+                    <strong>这一步不需要你先找账户 ID</strong>
+                    <span>先填 OpenAPI 密钥和地区，然后点击“获取账户 ID”。普通 Webull 设置页一般不会显示这个 ID。</span>
+                  </div>
                   <div className="form-grid compact">
                     <label>
                       <span>数据类型</span>
@@ -266,10 +275,6 @@ export default function SetupWizardPage() {
                       </select>
                     </label>
                     <label>
-                      <span>账户 ID</span>
-                      <input value={form.webull_account_id} onChange={(event) => update("webull_account_id", event.target.value)} placeholder={settings.data?.webull_account_id || "必填"} />
-                    </label>
-                    <label>
                       <span>App Key</span>
                       <input value={form.webull_app_key} onChange={(event) => update("webull_app_key", event.target.value)} placeholder={settings.data?.has_webull_app_key ? "已配置，留空不修改" : "必填"} />
                     </label>
@@ -288,7 +293,7 @@ export default function SetupWizardPage() {
                       {accountLookup.isPending ? <Loader2 size={16} className="spin-icon" /> : <Search size={16} />}
                       获取账户 ID
                     </button>
-                    <span>{accountLookupMessage || "普通 Webull 设置页一般看不到这个 ID，建议用 API 自动获取。"}</span>
+                    <span>{accountLookupHint}</span>
                   </div>
                   {(accountLookup.data?.accounts.length ?? 0) > 1 && (
                     <div className="setup-account-list">
@@ -306,6 +311,11 @@ export default function SetupWizardPage() {
                       ))}
                     </div>
                   )}
+                  <label className="setup-account-id-field">
+                    <span>账户 ID</span>
+                    <input value={form.webull_account_id} onChange={(event) => update("webull_account_id", event.target.value)} placeholder={settings.data?.webull_account_id || "自动获取后填入，也可以手动粘贴"} />
+                    <small>只有自动获取失败、且 Webull 后台明确给出了账户 ID 时，才需要手动填写。</small>
+                  </label>
                   <details className="setup-help">
                     <summary>信息获取方式</summary>
                     <div className="setup-help-content">

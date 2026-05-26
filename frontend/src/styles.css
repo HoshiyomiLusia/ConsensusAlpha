@@ -1649,6 +1649,26 @@ button:disabled {
   padding-left: 18px;
 }
 
+.setup-inline-guide {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #b9d7df;
+  border-radius: 8px;
+  background: #f2fbfd;
+  padding: 13px 15px;
+}
+
+.setup-inline-guide strong {
+  color: #17202a;
+  font-size: 15px;
+}
+
+.setup-inline-guide span {
+  color: #526170;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .setup-account-lookup {
   display: flex;
   align-items: center;
@@ -1698,6 +1718,23 @@ button:disabled {
 .setup-account-list small {
   color: #647383;
   font-size: 12px;
+}
+
+.setup-account-id-field {
+  display: grid;
+  gap: 8px;
+}
+
+.setup-account-id-field span {
+  color: #334155;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.setup-account-id-field small {
+  color: #647383;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .agent-configurator {
