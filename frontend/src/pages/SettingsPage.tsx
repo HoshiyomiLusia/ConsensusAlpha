@@ -444,7 +444,10 @@ export default function SettingsPage() {
                 </label>
                 <label>
                   <span>区域</span>
-                  <input value={form.webull_region} onChange={(event) => update("webull_region", event.target.value)} />
+                  <select value={form.webull_region} onChange={(event) => update("webull_region", event.target.value)}>
+                    <option value="jp">日本 / jp（api.webull.co.jp）</option>
+                    <option value="us">美国 / us（api.webull.com）</option>
+                  </select>
                 </label>
               </div>
             </section>

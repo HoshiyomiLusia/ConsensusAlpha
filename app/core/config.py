@@ -13,6 +13,16 @@ AGENT_ROLES = [
     "chairperson",
 ]
 
+US_TRADING_ENDPOINT_TEST = "us-openapi-alb.uat.webullbroker.com"
+US_MARKET_DATA_ENDPOINT_TEST = "us-broker-api.uat.webullbroker.com"
+US_TRADING_ENDPOINT_PRODUCTION = "api.webull.com"
+US_MARKET_DATA_ENDPOINT_PRODUCTION = "broker-api.webull.com"
+
+JP_TRADING_ENDPOINT_TEST = "jp-openapi-alb.uat.webullbroker.com"
+JP_MARKET_DATA_ENDPOINT_TEST = "jp-openapi-alb.uat.webullbroker.com"
+JP_TRADING_ENDPOINT_PRODUCTION = "api.webull.co.jp"
+JP_MARKET_DATA_ENDPOINT_PRODUCTION = "api.webull.co.jp"
+
 AgentRole = Literal[
     "market_analyst",
     "risk_manager",
@@ -65,10 +75,10 @@ class Settings(BaseSettings):
     webull_app_secret: str = ""
     webull_region: str = "us"
     webull_account_id: str = ""
-    webull_trading_endpoint_test: str = "us-openapi-alb.uat.webullbroker.com"
-    webull_market_data_endpoint_test: str = "us-broker-api.uat.webullbroker.com"
-    webull_trading_endpoint_production: str = "api.webull.com"
-    webull_market_data_endpoint_production: str = "broker-api.webull.com"
+    webull_trading_endpoint_test: str = US_TRADING_ENDPOINT_TEST
+    webull_market_data_endpoint_test: str = US_MARKET_DATA_ENDPOINT_TEST
+    webull_trading_endpoint_production: str = US_TRADING_ENDPOINT_PRODUCTION
+    webull_market_data_endpoint_production: str = US_MARKET_DATA_ENDPOINT_PRODUCTION
 
     llm_provider: str = "mock"
     llm_model: str = ""
@@ -92,15 +102,37 @@ class Settings(BaseSettings):
     @property
     def webull_trading_endpoint(self) -> str:
         if self.webull_env == "production":
-            return self.webull_trading_endpoint_production
-        return self.webull_trading_endpoint_test
+            return self._regional_endpoint(
+                self.webull_trading_endpoint_production,
+                US_TRADING_ENDPOINT_PRODUCTION,
+                {"jp": JP_TRADING_ENDPOINT_PRODUCTION},
+            )
+        return self._regional_endpoint(
+            self.webull_trading_endpoint_test,
+            US_TRADING_ENDPOINT_TEST,
+            {"jp": JP_TRADING_ENDPOINT_TEST},
+        )
 
     @computed_field
     @property
     def webull_market_data_endpoint(self) -> str:
         if self.webull_env == "production":
-            return self.webull_market_data_endpoint_production
-        return self.webull_market_data_endpoint_test
+            return self._regional_endpoint(
+                self.webull_market_data_endpoint_production,
+                US_MARKET_DATA_ENDPOINT_PRODUCTION,
+                {"jp": JP_MARKET_DATA_ENDPOINT_PRODUCTION},
+            )
+        return self._regional_endpoint(
+            self.webull_market_data_endpoint_test,
+            US_MARKET_DATA_ENDPOINT_TEST,
+            {"jp": JP_MARKET_DATA_ENDPOINT_TEST},
+        )
+
+    def _regional_endpoint(self, configured: str, default_us: str, regional_defaults: dict[str, str]) -> str:
+        region = self.webull_region.strip().lower()
+        if configured == default_us and region in regional_defaults:
+            return regional_defaults[region]
+        return configured
 
     @property
     def has_webull_credentials(self) -> bool:
