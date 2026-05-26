@@ -14,6 +14,7 @@ import {
   WalletCards
 } from "lucide-react";
 import {
+  ConferenceListItem,
   ConferenceDetail,
   DecisionRunResponse,
   RunConferenceResponse,
@@ -30,6 +31,18 @@ type DecisionResult = {
   conference: ConferenceDetail | null;
 };
 
+type FallbackDecisionResult = {
+  conference: ConferenceListItem | null;
+  orderId: string | null;
+  livePreviewId: string | null;
+};
+
+type DecisionBaseline = {
+  conferenceIds: Set<string>;
+  paperOrderIds: Set<string>;
+  livePreviewIds: Set<string>;
+};
+
 const stages: Array<{ key: DecisionStage; label: string }> = [
   { key: "scan", label: "持仓与候选" },
   { key: "select", label: "一审计划" },
@@ -39,6 +52,9 @@ const stages: Array<{ key: DecisionStage; label: string }> = [
 
 const MIN_STAGE_VISIBLE_MS = 500;
 const DECISION_TIMEOUT_MS = 45_000;
+const FALLBACK_POLL_START_MS = 3_000;
+const FALLBACK_POLL_INTERVAL_MS = 1_000;
+const FALLBACK_POLL_ATTEMPTS = 12;
 
 function wait(ms: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
@@ -76,6 +92,15 @@ function orderActionLabel(result: DecisionResult): string {
   return "查看订单页";
 }
 
+function fallbackOrderOutcome(result: FallbackDecisionResult): string {
+  if (result.orderId) return `已生成模拟订单 ${result.orderId}`;
+  if (result.livePreviewId) return "已生成实盘预览，等待人工确认";
+  if (result.conference?.final_action === "HOLD") return "结论为观望，未生成订单";
+  if (result.conference && !result.conference.consensus_reached) return "未达成共识，未生成订单";
+  if (result.conference?.risk_approved === false) return "风控阻断，未生成订单";
+  return "会议已完成";
+}
+
 function dataSourceLabel(settings?: AppSettings): string {
   if (!settings) return "读取中";
   return settings.broker_provider === "webull" ? "真实数据" : "模拟数据";
@@ -101,6 +126,7 @@ export default function DecisionCenterPage() {
   const [useLlm, setUseLlm] = useState(true);
   const [stage, setStage] = useState<DecisionStage>("idle");
   const [result, setResult] = useState<DecisionResult | null>(null);
+  const [fallbackResult, setFallbackResult] = useState<FallbackDecisionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const isRunning = stage !== "idle" && stage !== "done" && stage !== "error";
@@ -119,12 +145,53 @@ export default function DecisionCenterPage() {
     ]);
   }
 
+  function currentBaseline(): DecisionBaseline {
+    return {
+      conferenceIds: new Set<string>(),
+      paperOrderIds: new Set((paperOrders.data ?? []).map((order) => order.order_id)),
+      livePreviewIds: new Set((livePreviews.data ?? []).map((preview) => preview.preview_id))
+    };
+  }
+
+  async function enrichBaseline(baseline: DecisionBaseline): Promise<DecisionBaseline> {
+    const conferences = await api.conferences().catch(() => []);
+    return {
+      conferenceIds: new Set(conferences.map((conference) => conference.conference_id)),
+      paperOrderIds: baseline.paperOrderIds,
+      livePreviewIds: baseline.livePreviewIds
+    };
+  }
+
+  async function pollDecisionCompletion(baseline: DecisionBaseline): Promise<FallbackDecisionResult | null> {
+    for (let attempt = 0; attempt < FALLBACK_POLL_ATTEMPTS; attempt += 1) {
+      await wait(FALLBACK_POLL_INTERVAL_MS);
+      const [conferences, orders, previews] = await Promise.all([
+        api.conferences().catch(() => []),
+        api.paperOrders().catch(() => []),
+        api.livePreviews().catch(() => [])
+      ]);
+      const conference = conferences.find((item) => !baseline.conferenceIds.has(item.conference_id)) ?? null;
+      const order = orders.find((item) => !baseline.paperOrderIds.has(item.order_id)) ?? null;
+      const preview = previews.find((item) => !baseline.livePreviewIds.has(item.preview_id)) ?? null;
+      if (conference || order || preview) {
+        return {
+          conference,
+          orderId: order?.order_id ?? conference?.order_id ?? null,
+          livePreviewId: preview?.preview_id ?? conference?.live_preview_id ?? null
+        };
+      }
+    }
+    return null;
+  }
+
   async function runDecision(event: FormEvent) {
     event.preventDefault();
     setError(null);
     setResult(null);
+    setFallbackResult(null);
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), DECISION_TIMEOUT_MS);
+    const baseline = await enrichBaseline(currentBaseline());
 
     try {
       setStage("scan");
@@ -136,8 +203,25 @@ export default function DecisionCenterPage() {
         order_type: "MARKET",
         limit_price: null
       }, { signal: controller.signal });
+      void decisionRequest.catch(() => undefined);
       await wait(MIN_STAGE_VISIBLE_MS);
-      const decision = await decisionRequest;
+      const firstDecisionResult = await Promise.race([
+        decisionRequest,
+        wait(FALLBACK_POLL_START_MS).then(() => null)
+      ]);
+      if (!firstDecisionResult) {
+        setStage("select");
+        const fallback = await pollDecisionCompletion(baseline);
+        if (fallback) {
+          window.clearTimeout(timeoutId);
+          controller.abort();
+          setFallbackResult(fallback);
+          setStage("done");
+          void queryClient.invalidateQueries();
+          return;
+        }
+      }
+      const decision = firstDecisionResult ?? await decisionRequest;
       window.clearTimeout(timeoutId);
 
       if (decision.proposal_run.proposals.length === 0) {
@@ -179,6 +263,7 @@ export default function DecisionCenterPage() {
   function reset() {
     setStage("idle");
     setResult(null);
+    setFallbackResult(null);
     setError(null);
   }
 
@@ -188,6 +273,8 @@ export default function DecisionCenterPage() {
   const shouldOpenOrders = Boolean(
     result?.decision.decision_plan.order_id ||
       result?.decision.decision_plan.live_preview_id ||
+      fallbackResult?.orderId ||
+      fallbackResult?.livePreviewId ||
       pendingPreviews.length > 0
   );
 
@@ -302,6 +389,53 @@ export default function DecisionCenterPage() {
             <Link className="secondary-action" to={`/conference/${result.run.conference_id}`}>
               查看详情 <ArrowRight size={16} />
             </Link>
+            <button className="secondary-action" type="button" onClick={reset}>
+              <RefreshCcw size={16} />
+              再来一次
+            </button>
+          </div>
+        </section>
+      )}
+
+      {fallbackResult && !result && (
+        <section className="simple-result">
+          <div className="simple-result-main">
+            <span>最终结论</span>
+            <h3>
+              {fallbackResult.conference?.symbol ?? "决策完成"}：
+              {fallbackResult.conference ? displayValue(fallbackResult.conference.final_action) : "已生成结果"}
+            </h3>
+            <p>后端已经完成本次决策。当前浏览器没有拿到完整响应，所以这里显示从会议和订单记录恢复出的结果。</p>
+          </div>
+          {fallbackResult.conference && (
+            <div className="simple-result-facts">
+              <div>
+                <span>会议共识</span>
+                <strong>{fallbackResult.conference.consensus_reached ? "达成" : "未达成"}</strong>
+              </div>
+              <div>
+                <span>风控</span>
+                <strong>{fallbackResult.conference.risk_approved ? "通过" : "阻断或无需执行"}</strong>
+              </div>
+            </div>
+          )}
+          <div className="simple-order-outcome">
+            <span>订单路由</span>
+            <strong>{fallbackOrderOutcome(fallbackResult)}</strong>
+            <small>结果已从后端记录恢复。可以继续处理订单或查看会议详情。</small>
+          </div>
+          <div className="simple-result-actions">
+            {shouldOpenOrders && (
+              <Link className="primary-action" to="/orders">
+                <ClipboardList size={16} />
+                {fallbackResult.livePreviewId ? "确认订单预览" : "查看模拟订单"}
+              </Link>
+            )}
+            {fallbackResult.conference && (
+              <Link className="secondary-action" to={`/conference/${fallbackResult.conference.conference_id}`}>
+                查看详情 <ArrowRight size={16} />
+              </Link>
+            )}
             <button className="secondary-action" type="button" onClick={reset}>
               <RefreshCcw size={16} />
               再来一次
