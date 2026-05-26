@@ -95,6 +95,12 @@ a {
   align-items: center;
 }
 
+.row-actions {
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .topbar,
 .toolbar,
 .panel-heading {
@@ -960,6 +966,74 @@ a {
   gap: 12px;
 }
 
+.order-guide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border-color: #d7e2ea;
+  background: #ffffff;
+}
+
+.order-guide-pending {
+  border-color: #b8d8e2;
+  background: #f5fbfd;
+}
+
+.order-guide-done {
+  border-color: #9ed9bc;
+  background: #f4fbf7;
+}
+
+.order-guide-main {
+  display: grid;
+  grid-row: 1 / span 2;
+  gap: 5px;
+  min-width: 0;
+}
+
+.order-guide-main span {
+  color: #647383;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.order-guide-main h3,
+.order-guide-main p {
+  margin: 0;
+}
+
+.order-guide-main h3 {
+  color: #17202a;
+  font-size: 20px;
+}
+
+.order-guide-main p,
+.order-guide-focus span {
+  color: #526170;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.order-guide-focus {
+  display: grid;
+  gap: 3px;
+  min-width: 180px;
+}
+
+.order-guide-focus strong {
+  color: #17202a;
+  font-size: 19px;
+}
+
+.order-guide-actions {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .readiness-ok {
   border-color: #9ed9bc;
   background: #f4fbf7;
@@ -1156,6 +1230,16 @@ button:disabled {
   gap: 8px;
 }
 
+.table .empty-state {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  border: 1px dashed #d7e2ea;
+  border-radius: 8px;
+  background: #fbfcfd;
+  padding: 10px 12px;
+}
+
 .table-header,
 .table-row {
   display: grid;
@@ -1187,11 +1271,23 @@ button:disabled {
 }
 
 .table-orders {
-  grid-template-columns: 1fr 90px 100px 190px 110px;
+  grid-template-columns: 1fr 90px 100px 190px 180px;
 }
 
 .table-paper {
   grid-template-columns: 1fr 90px 100px 120px 110px;
+}
+
+.order-row-button {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.order-row-button.danger {
+  border-color: #efa1a1;
+  background: #fffafa;
+  color: #8e1f1f;
 }
 
 .table-positions {
@@ -2204,6 +2300,20 @@ textarea {
   .advanced-intro {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .order-guide {
+    grid-template-columns: 1fr;
+  }
+
+  .order-guide-main,
+  .order-guide-actions {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .order-guide-actions {
+    justify-content: flex-start;
   }
 
   .topbar-badges {

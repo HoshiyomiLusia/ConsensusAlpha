@@ -1,7 +1,8 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Check, RefreshCcw, ShieldCheck, X } from "lucide-react";
-import { api, LivePreview, Settings } from "../api/client";
+import { Link } from "react-router-dom";
+import { AlertTriangle, Check, ClipboardCheck, RefreshCcw, ShieldCheck, WalletCards, X } from "lucide-react";
+import { api, LivePreview, PaperOrder, Settings } from "../api/client";
 import { StatusBadge } from "../components/Badges";
 import { displayValue, formatSettingKey } from "../lib/format";
 
@@ -17,6 +18,9 @@ export default function OrdersPage() {
     mutationFn: api.rejectLivePreview,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["live-previews"] })
   });
+  const previewList = livePreviews.data ?? [];
+  const pendingPreviews = previewList.filter((preview) => preview.status === "PENDING_CONFIRMATION");
+  const paperOrderList = paperOrders.data ?? [];
 
   return (
     <div className="page-stack">
@@ -30,9 +34,10 @@ export default function OrdersPage() {
         </button>
       </section>
 
+      <OrderGuidePanel pendingPreviews={pendingPreviews} paperOrders={paperOrderList} onConfirm={setConfirming} />
       <OrderModePanel settings={settings.data} readiness={readiness.data} />
 
-      <section className="panel">
+      <section className="panel" id="live-previews">
         <h3>实盘预览</h3>
         <div className="table">
           <div className="table-header table-orders">
@@ -42,7 +47,8 @@ export default function OrdersPage() {
             <span>状态</span>
             <span>操作</span>
           </div>
-          {(livePreviews.data ?? []).map((preview) => (
+          {previewList.length === 0 && <div className="empty-state">没有待确认的实盘预览。模拟订单生成后会直接出现在下方。</div>}
+          {previewList.map((preview) => (
             <LivePreviewRow
               key={preview.preview_id}
               preview={preview}
@@ -64,7 +70,8 @@ export default function OrdersPage() {
             <span>成交价</span>
             <span>状态</span>
           </div>
-          {(paperOrders.data ?? []).map((order) => (
+          {paperOrderList.length === 0 && <div className="empty-state">还没有模拟成交订单。回到简单模式运行一次自动决策即可生成。</div>}
+          {paperOrderList.map((order) => (
             <div className="table-row table-paper" key={order.order_id}>
               <strong>{order.symbol}</strong>
               <span>{displayValue(order.side)}</span>
@@ -78,6 +85,78 @@ export default function OrdersPage() {
 
       {confirming && <ConfirmModal preview={confirming} onClose={() => setConfirming(null)} />}
     </div>
+  );
+}
+
+function OrderGuidePanel({
+  pendingPreviews,
+  paperOrders,
+  onConfirm
+}: {
+  pendingPreviews: LivePreview[];
+  paperOrders: PaperOrder[];
+  onConfirm: (preview: LivePreview) => void;
+}) {
+  const firstPreview = pendingPreviews[0];
+  const latestPaperOrder = paperOrders[0];
+
+  if (firstPreview) {
+    return (
+      <section className="panel order-guide order-guide-pending">
+        <div className="order-guide-main">
+          <span>下一步</span>
+          <h3>核对订单预览，然后确认或拒绝</h3>
+          <p>
+            当前有 {pendingPreviews.length} 个预览等待处理。先看标的、方向、数量、金额和环境；认可就确认，不认可就拒绝。
+          </p>
+        </div>
+        <div className="order-guide-focus">
+          <strong>{firstPreview.symbol}</strong>
+          <span>{displayValue(firstPreview.side)} · {firstPreview.quantity} 股 · {firstPreview.estimated_notional ?? "金额待估算"}</span>
+        </div>
+        <div className="order-guide-actions">
+          <button className="primary-action" type="button" onClick={() => onConfirm(firstPreview)}>
+            <ClipboardCheck size={16} />
+            确认这笔预览
+          </button>
+          <a className="secondary-action" href="#live-previews">查看全部预览</a>
+        </div>
+      </section>
+    );
+  }
+
+  if (latestPaperOrder) {
+    return (
+      <section className="panel order-guide order-guide-done">
+        <div className="order-guide-main">
+          <span>下一步</span>
+          <h3>模拟订单已完成，不需要再确认</h3>
+          <p>
+            最近一笔是 {latestPaperOrder.symbol} {displayValue(latestPaperOrder.side)}，已经按纸面交易成交。接下来主要看持仓变化，或者回到简单模式生成下一轮决策。
+          </p>
+        </div>
+        <div className="order-guide-actions">
+          <Link className="primary-action" to="/positions">
+            <WalletCards size={16} />
+            查看持仓
+          </Link>
+          <Link className="secondary-action" to="/">继续自动决策</Link>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel order-guide">
+      <div className="order-guide-main">
+        <span>下一步</span>
+        <h3>现在没有订单要处理</h3>
+        <p>如果刚才的会议结论是观望，或者风控没有通过，这里不会生成订单。需要新的决策时回到简单模式重新运行。</p>
+      </div>
+      <div className="order-guide-actions">
+        <Link className="primary-action" to="/">回到自动决策</Link>
+      </div>
+    </section>
   );
 }
 
@@ -202,20 +281,22 @@ function LivePreviewRow({
       <StatusBadge value={preview.status} tone={preview.status === "PENDING_CONFIRMATION" ? "warn" : "ok"} />
       <div className="row-actions">
         <button
-          className="icon-button"
+          className="secondary-action order-row-button"
           title={productionBlocked ? "真实交易上线检查未通过" : "确认实盘预览"}
           disabled={disabled}
           onClick={() => onConfirm(preview)}
         >
           <Check size={16} />
+          确认
         </button>
         <button
-          className="icon-button"
+          className="secondary-action order-row-button danger"
           title="拒绝实盘预览"
           disabled={preview.status !== "PENDING_CONFIRMATION"}
           onClick={() => onReject(preview.preview_id)}
         >
           <X size={16} />
+          拒绝
         </button>
       </div>
     </div>

@@ -68,6 +68,13 @@ function orderOutcome(result: DecisionResult): string {
   return "未生成订单";
 }
 
+function orderActionLabel(result: DecisionResult): string {
+  const plan = result.decision.decision_plan;
+  if (plan.live_preview_id) return "确认订单预览";
+  if (plan.order_id) return "查看模拟订单";
+  return "查看订单页";
+}
+
 function dataSourceLabel(settings?: AppSettings): string {
   if (!settings) return "读取中";
   return settings.broker_provider === "webull" ? "真实数据" : "模拟数据";
@@ -274,7 +281,7 @@ export default function DecisionCenterPage() {
             {shouldOpenOrders && (
               <Link className="primary-action" to="/orders">
                 <ClipboardList size={16} />
-                处理订单
+                {orderActionLabel(result)}
               </Link>
             )}
             <Link className="secondary-action" to={`/conference/${result.run.conference_id}`}>
