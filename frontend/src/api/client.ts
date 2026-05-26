@@ -56,6 +56,30 @@ export type ProviderStatus = {
   details: Record<string, unknown>;
 };
 
+export type WebullAccount = {
+  account_id: string;
+  label: string;
+  account_type: string | null;
+  status: string | null;
+  currency: string | null;
+  raw_payload: Record<string, unknown>;
+};
+
+export type WebullAccountLookupPayload = {
+  webull_env: "test" | "production";
+  webull_region: string;
+  webull_app_key: string;
+  webull_app_secret: string;
+  webull_trading_endpoint_test?: string | null;
+  webull_trading_endpoint_production?: string | null;
+};
+
+export type WebullAccountLookupResponse = {
+  environment: string;
+  region: string;
+  accounts: WebullAccount[];
+};
+
 export type ConferenceListItem = {
   conference_id: string;
   symbol: string;
@@ -462,6 +486,11 @@ export const api = {
       body: JSON.stringify(payload)
     }),
   providerStatus: () => request<ProviderStatus>("/provider/status"),
+  webullAccounts: (payload: WebullAccountLookupPayload) =>
+    request<WebullAccountLookupResponse>("/provider/webull/accounts", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
   productionReadiness: () => request<ProductionReadiness>("/production/readiness"),
   runDecision: (payload: DecisionRunPayload, init?: Pick<RequestInit, "signal">) =>
     request<DecisionRunResponse>("/decision/run", {

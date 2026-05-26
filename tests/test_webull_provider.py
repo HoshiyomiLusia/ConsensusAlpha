@@ -38,6 +38,20 @@ class FakeDataClient:
 
 
 class FakeAccountV2:
+    def get_account_list(self):
+        return FakeResponse(
+            {
+                "data": [
+                    {
+                        "accountId": "acct-1",
+                        "accountType": "MARGIN",
+                        "status": "ACTIVE",
+                        "currency": "USD",
+                    }
+                ]
+            }
+        )
+
     def get_account_balance(self, account_id):
         return FakeResponse({"data": {"account_id": account_id, "equity": "100000", "buyingPower": "50000"}})
 
@@ -81,10 +95,12 @@ def test_webull_provider_maps_snapshot_account_and_positions():
     snapshot = asyncio.run(provider.get_market_snapshot("AAPL"))
     account = asyncio.run(provider.get_account_summary())
     positions = asyncio.run(provider.get_positions())
+    accounts = asyncio.run(provider.list_accounts())
 
     assert snapshot.price == Decimal("101.25")
     assert account.equity == Decimal("100000")
     assert positions[0].market_value == Decimal("200")
+    assert accounts[0]["account_id"] == "acct-1"
 
 
 def test_webull_provider_maps_preview_and_place_order():

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Save } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Loader2, Save, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api, SettingsUpdatePayload } from "../api/client";
 import AgentModelConfigurator, {
@@ -64,6 +64,12 @@ export default function SetupWizardPage() {
   const [step, setStep] = useState(0);
   const [maxUnlockedStep, setMaxUnlockedStep] = useState(0);
   const [error, setError] = useState("");
+  const [accountLookupMessage, setAccountLookupMessage] = useState("");
+  const hasWebullAppKey = settings.data?.has_webull_app_key ?? false;
+  const hasWebullAppSecret = settings.data?.has_webull_app_secret ?? false;
+  const canLookupWebullAccounts = Boolean(
+    (form.webull_app_key.trim() || hasWebullAppKey) && (form.webull_app_secret.trim() || hasWebullAppSecret)
+  );
 
   useEffect(() => {
     if (!settings.data) return;
@@ -97,6 +103,31 @@ export default function SetupWizardPage() {
     }
   });
 
+  const accountLookup = useMutation({
+    mutationFn: () =>
+      api.webullAccounts({
+        webull_env: form.webull_env,
+        webull_region: form.webull_region,
+        webull_app_key: form.webull_app_key,
+        webull_app_secret: form.webull_app_secret
+      }),
+    onSuccess: (result) => {
+      if (result.accounts.length === 0) {
+        setAccountLookupMessage("没有从 Webull 返回可用账户。请确认 OpenAPI 应用已经绑定证券账户。");
+        return;
+      }
+      if (result.accounts.length === 1) {
+        update("webull_account_id", result.accounts[0].account_id);
+        setAccountLookupMessage(`已填入账户 ${result.accounts[0].account_id}`);
+        return;
+      }
+      setAccountLookupMessage(`找到 ${result.accounts.length} 个账户，请在下方选择。`);
+    },
+    onError: (caught) => {
+      setAccountLookupMessage(caught instanceof Error ? caught.message : "账户列表获取失败。");
+    }
+  });
+
   const summary = useMemo(
     () => [
       ["数据源", displayValue(form.broker_provider)],
@@ -112,6 +143,7 @@ export default function SetupWizardPage() {
 
   function update<K extends keyof WizardForm>(key: K, value: WizardForm[K]) {
     setError("");
+    setAccountLookupMessage("");
     setForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -224,7 +256,14 @@ export default function SetupWizardPage() {
                     </label>
                     <label>
                       <span>区域</span>
-                      <input value={form.webull_region} onChange={(event) => update("webull_region", event.target.value)} />
+                      <select value={form.webull_region} onChange={(event) => update("webull_region", event.target.value)}>
+                        <option value="us">美国 / us</option>
+                        <option value="jp">日本 / jp</option>
+                        <option value="hk">香港 / hk</option>
+                        <option value="sg">新加坡 / sg</option>
+                        <option value="au">澳大利亚 / au</option>
+                        <option value="th">泰国 / th</option>
+                      </select>
                     </label>
                     <label>
                       <span>账户 ID</span>
@@ -239,6 +278,34 @@ export default function SetupWizardPage() {
                       <input type="password" value={form.webull_app_secret} onChange={(event) => update("webull_app_secret", event.target.value)} placeholder={settings.data?.has_webull_app_secret ? "已配置，留空不修改" : "必填"} />
                     </label>
                   </div>
+                  <div className="setup-account-lookup">
+                    <button
+                      className="secondary-action"
+                      type="button"
+                      disabled={accountLookup.isPending || !canLookupWebullAccounts}
+                      onClick={() => accountLookup.mutate()}
+                    >
+                      {accountLookup.isPending ? <Loader2 size={16} className="spin-icon" /> : <Search size={16} />}
+                      获取账户 ID
+                    </button>
+                    <span>{accountLookupMessage || "普通 Webull 设置页一般看不到这个 ID，建议用 API 自动获取。"}</span>
+                  </div>
+                  {(accountLookup.data?.accounts.length ?? 0) > 1 && (
+                    <div className="setup-account-list">
+                      {accountLookup.data?.accounts.map((account) => (
+                        <button
+                          type="button"
+                          className={form.webull_account_id === account.account_id ? "active" : ""}
+                          key={account.account_id}
+                          onClick={() => update("webull_account_id", account.account_id)}
+                        >
+                          <strong>{account.label || account.account_id}</strong>
+                          <span>{account.account_id}</span>
+                          <small>{[account.account_type, account.status, account.currency].filter(Boolean).join(" / ") || "账户信息"}</small>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <details className="setup-help">
                     <summary>信息获取方式</summary>
                     <div className="setup-help-content">
@@ -263,9 +330,9 @@ export default function SetupWizardPage() {
                       </section>
                       <section>
                         <h4>需要准备的信息</h4>
-                        <p><strong>账户 ID</strong> 是 Webull OpenAPI 绑定账户的标识，不是邮箱或登录名；通常在开发者后台、应用绑定账户页面，或账户列表接口返回中获取。</p>
+                        <p><strong>账户 ID</strong> 是 Webull OpenAPI 绑定账户的标识，不是邮箱或登录名；普通证券账户设置页通常不会显示。填入 App Key / Secret 后，优先点击“获取账户 ID”。</p>
                         <p><strong>App Key / App Secret</strong> 来自 Webull 开发者后台创建的 OpenAPI 应用。Secret 只在后端写入 `.env`，前端不会回显。</p>
-                        <p><strong>区域</strong> 第一版默认使用 `us`，对应美股/ETF 场景。</p>
+                        <p><strong>区域</strong> 要和你的 Webull 开户地区一致。日本 Webull 账户通常选择 `jp`，美国账户选择 `us`。</p>
                       </section>
                       <section>
                         <h4>两个数据选项</h4>

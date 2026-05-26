@@ -196,6 +196,47 @@ class WebullProvider:
             )
         return positions
 
+    async def list_accounts(self) -> list[dict[str, Any]]:
+        response = await asyncio.to_thread(
+            self._sdk_call,
+            lambda: self.trade_client.account_v2.get_account_list(),
+        )
+        payload = self._response_payload(response)
+        accounts: list[dict[str, Any]] = []
+        for item in self._items(payload):
+            account_id = self._string_from_keys(
+                item,
+                "account_id",
+                "accountId",
+                "account_no",
+                "accountNo",
+                "account",
+                "id",
+                "brokerAccountId",
+                "secAccountId",
+            )
+            if not account_id:
+                continue
+            label = self._string_from_keys(
+                item,
+                "account_name",
+                "accountName",
+                "nickname",
+                "name",
+                "accountType",
+            )
+            accounts.append(
+                {
+                    "account_id": account_id,
+                    "label": label or account_id,
+                    "account_type": self._string_from_keys(item, "account_type", "accountType", "type"),
+                    "status": self._string_from_keys(item, "status", "accountStatus"),
+                    "currency": self._string_from_keys(item, "currency", "baseCurrency"),
+                    "raw_payload": redact_payload(item),
+                }
+            )
+        return accounts
+
     async def preview_order(self, order: OrderIntent) -> OrderPreview:
         self._ensure_stock_or_etf(order.asset_type)
         new_orders = [self._to_webull_order(order)]
@@ -402,6 +443,15 @@ class WebullProvider:
                 return int(float(str(value)))
             except ValueError:
                 continue
+        return None
+
+    @staticmethod
+    def _string_from_keys(item: dict, *keys: str) -> str | None:
+        for key in keys:
+            value = item.get(key)
+            if value is None or value == "":
+                continue
+            return str(value)
         return None
 
     @staticmethod
