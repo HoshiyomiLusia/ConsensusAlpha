@@ -62,6 +62,18 @@ def choose_plan_proposal(
         selected_review = actionable_reviews[0]
         return review_to_proposal(selected_review), _intent_label(selected_review.review_action)
 
+    held_symbols = {item.symbol.upper() for item in portfolio_reviews}
+    fresh_buy_proposal = next(
+        (
+            proposal
+            for proposal in opportunity_proposals
+            if proposal.proposed_action == "BUY" and proposal.symbol.upper() not in held_symbols
+        ),
+        None,
+    )
+    if fresh_buy_proposal:
+        return fresh_buy_proposal, "发现新机会"
+
     buy_proposal = next(
         (proposal for proposal in opportunity_proposals if proposal.proposed_action == "BUY"),
         None,
