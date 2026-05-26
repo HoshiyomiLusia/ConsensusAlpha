@@ -187,6 +187,7 @@ export default function DecisionCenterPage() {
 
   async function runDecision(event: FormEvent) {
     event.preventDefault();
+    if (result || fallbackResult) return;
     if (runningRef.current) return;
     runningRef.current = true;
     setError(null);
@@ -281,6 +282,7 @@ export default function DecisionCenterPage() {
   const activeIndex = currentStageIndex(stage);
   const tokenUsage = result?.conference?.model_usage;
   const riskApproved = result?.decision.decision_plan.risk_approved ?? false;
+  const hasDecisionResult = Boolean(result || fallbackResult);
   const shouldOpenOrders = Boolean(
     result?.decision.decision_plan.order_id ||
       result?.decision.decision_plan.live_preview_id ||
@@ -306,9 +308,9 @@ export default function DecisionCenterPage() {
             <strong>自动流程</strong>
             <span>持仓复盘 / 候选池脚本 / 组合会议 / 风控与订单路由</span>
           </div>
-          <button className="primary-action simple-main-action" type="submit" disabled={isRunning}>
+          <button className="primary-action simple-main-action" type="submit" disabled={isRunning || hasDecisionResult}>
             {isRunning ? <Loader2 size={20} className="spin-icon" /> : <Sparkles size={20} />}
-            {isRunning ? "正在处理" : "开始自动决策"}
+            {isRunning ? "正在处理" : hasDecisionResult ? "已生成结果" : "开始自动决策"}
           </button>
           {(isRunning || error) && (
             <div className={error ? "simple-inline-feedback danger" : "simple-inline-feedback"}>
