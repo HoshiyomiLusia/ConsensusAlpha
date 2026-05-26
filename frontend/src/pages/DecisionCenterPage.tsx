@@ -79,7 +79,7 @@ function currentStageLabel(stage: DecisionStage): string {
 function orderOutcome(result: DecisionResult): string {
   const plan = result.decision.decision_plan;
   if (plan.order_id) return `已生成模拟订单 ${plan.order_id}`;
-  if (plan.live_preview_id) return "已生成实盘预览，等待人工确认";
+  if (plan.live_preview_id) return "已生成订单预览，等待人工确认";
   if (plan.final_action === "HOLD") return "结论为观望，未生成订单";
   if (!result.run.consensus_reached) return "未达成共识，未生成订单";
   if (!plan.risk_approved) return "风控阻断，未生成订单";
@@ -95,7 +95,7 @@ function orderActionLabel(result: DecisionResult): string {
 
 function fallbackOrderOutcome(result: FallbackDecisionResult): string {
   if (result.orderId) return `已生成模拟订单 ${result.orderId}`;
-  if (result.livePreviewId) return "已生成实盘预览，等待人工确认";
+  if (result.livePreviewId) return "已生成订单预览，等待人工确认";
   if (result.conference?.final_action === "HOLD") return "结论为观望，未生成订单";
   if (result.conference && !result.conference.consensus_reached) return "未达成共识，未生成订单";
   if (result.conference?.risk_approved === false) return "风控阻断，未生成订单";
@@ -296,6 +296,7 @@ export default function DecisionCenterPage() {
       setTestResetMessage(response.message);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["paper-orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["live-previews"] }),
         queryClient.invalidateQueries({ queryKey: ["positions"] }),
         queryClient.invalidateQueries({ queryKey: ["audit"] })
       ]);
@@ -549,7 +550,7 @@ export default function DecisionCenterPage() {
           <ClipboardList size={18} />
           <div>
             <strong>处理订单</strong>
-            <span>{paperOrders.data?.length ?? 0} 笔模拟成交；实盘预览需确认</span>
+            <span>{paperOrders.data?.length ?? 0} 笔模拟成交；订单预览需确认</span>
           </div>
         </Link>
         <Link to="/positions">

@@ -20,7 +20,7 @@ function pageCopy(pathname: string): { title: string; description: string } {
     return { title: "设置", description: "初始化配置、数据源、模型和风控参数。" };
   }
   if (pathname.startsWith("/orders")) {
-    return { title: "订单", description: "确认实盘预览或查看模拟订单。" };
+    return { title: "订单", description: "确认订单预览或查看模拟订单。" };
   }
   if (pathname.startsWith("/positions")) {
     return { title: "持仓", description: "查看当前数据源返回的账户持仓。" };

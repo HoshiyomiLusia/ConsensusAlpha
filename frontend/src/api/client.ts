@@ -170,6 +170,7 @@ export type LivePreview = {
   status: string;
   account_id: string;
   environment: string;
+  mode: "paper" | "live";
   created_at: string;
   confirmed_at: string | null;
 };
@@ -483,11 +484,11 @@ export const api = {
       body: JSON.stringify(payload)
     }),
   paperOrders: () => request<PaperOrder[]>("/orders/paper"),
-  livePreviews: () => request<LivePreview[]>("/orders/live/previews"),
+  livePreviews: () => request<LivePreview[]>("/orders/previews"),
   rejectLivePreview: (previewId: string) =>
-    request<LivePreview>(`/orders/live/${previewId}/reject`, { method: "POST" }),
+    request<LivePreview>(`/orders/previews/${previewId}/reject`, { method: "POST" }),
   confirmLivePreview: (previewId: string, body: Record<string, unknown>) =>
-    request<Record<string, unknown>>(`/orders/live/${previewId}/confirm`, {
+    request<Record<string, unknown>>(`/orders/previews/${previewId}/confirm`, {
       method: "POST",
       body: JSON.stringify(body)
     }),

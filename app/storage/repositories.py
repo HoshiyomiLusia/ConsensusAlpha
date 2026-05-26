@@ -255,6 +255,10 @@ def reset_paper_trading_state(db: Session) -> dict[str, int]:
     ):
         result = db.execute(delete(table))
         deleted[name] = int(result.rowcount or 0)
+    preview_result = db.execute(
+        delete(LiveOrderPreviewTable).where(LiveOrderPreviewTable.environment == "paper")
+    )
+    deleted["paper_previews"] = int(preview_result.rowcount or 0)
     db.flush()
     return deleted
 

@@ -231,7 +231,7 @@ export default function RunConference() {
                 {mutation.data.order_id
                   ? `已生成模拟订单 ${mutation.data.order_id}`
                   : mutation.data.live_preview_id
-                    ? `已生成实盘预览 ${mutation.data.live_preview_id}`
+                    ? `已生成订单预览 ${mutation.data.live_preview_id}`
                     : "未生成订单"}
               </strong>
             </div>

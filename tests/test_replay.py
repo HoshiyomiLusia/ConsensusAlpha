@@ -77,6 +77,7 @@ def test_replay_snapshot_is_deterministic_with_mock_llm():
     for row in (first, second):
         row.pop("conference_id", None)
         row.pop("order_id", None)
+        row.pop("live_preview_id", None)
         for opinion in row["opinions"]:
             opinion.pop("raw_payload", None)
     assert first == second

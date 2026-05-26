@@ -243,6 +243,7 @@ def _live_preview_dict(row: LiveOrderPreviewTable) -> dict:
         "status": row.status,
         "account_id": row.account_id,
         "environment": row.environment,
+        "mode": "paper" if row.environment == "paper" or row.account_id == "paper" else "live",
         "created_at": row.created_at,
         "confirmed_at": row.confirmed_at,
     }

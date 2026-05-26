@@ -51,11 +51,27 @@ def test_run_conference_api_creates_paper_order_with_unanimous_mock_buy():
             data = response.json()
             assert data["final_action"] == "BUY"
             assert data["risk_approved"] is True
-            assert data["order_id"] is not None
+            assert data["order_id"] is None
+            assert data["live_preview_id"] is not None
+
+            previews = client.get("/orders/previews")
+            assert previews.status_code == 200
+            preview = next(
+                item for item in previews.json() if item["preview_id"] == data["live_preview_id"]
+            )
+            assert preview["mode"] == "paper"
+            assert preview["status"] == "PENDING_CONFIRMATION"
+
+            confirm = client.post(
+                f"/orders/previews/{data['live_preview_id']}/confirm",
+                json={"acknowledge_live_risk": True},
+            )
+            assert confirm.status_code == 200, confirm.text
+            order_id = confirm.json()["execution"]["order_id"]
 
             orders = client.get("/orders/paper")
             assert orders.status_code == 200
-            assert any(order["order_id"] == data["order_id"] for order in orders.json())
+            assert any(order["order_id"] == order_id for order in orders.json())
 
             positions = client.get("/portfolio/positions")
             assert positions.status_code == 200

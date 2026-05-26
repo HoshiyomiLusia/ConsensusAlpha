@@ -47,9 +47,12 @@ export function formatAuditAction(action: string): string {
     "conference.run": "会议运行",
     "proposal.run": "提案扫描",
     "live_preview.reject": "拒绝实盘预览",
+    "order_preview.reject": "拒绝订单预览",
+    "paper_order.confirm": "确认模拟订单",
     "live_order.confirm": "确认实盘订单",
     "live_order.confirm_failed": "实盘确认失败",
-    "live_preview.expire": "实盘预览过期"
+    "live_preview.expire": "实盘预览过期",
+    "order_preview.expire": "订单预览过期"
   };
   return map[action] ?? action;
 }
@@ -130,7 +133,7 @@ export function formatRiskCheckName(name: string): string {
     buying_power_available: "可用资金",
     sell_position_available: "卖出持仓",
     limit_price_deviation: "限价偏离",
-    duplicate_pending_live_preview: "重复实盘预览",
+    duplicate_pending_live_preview: "重复订单预览",
     production_live_configuration: "生产实盘配置",
     regular_market_hours: "常规交易时段",
     daily_live_order_count: "每日实盘订单数",
@@ -168,9 +171,10 @@ export function formatReason(reason: string): string {
     "daily loss limit exceeded": "日亏损限制超限",
     "cooldown passed": "交易冷却通过",
     "symbol is inside cooldown window": "该标的仍在交易冷却期",
-    "no duplicate pending live preview": "不存在重复待确认实盘预览",
-    "duplicate pending live preview exists": "已存在相同标的和方向的待确认实盘预览",
-    "paper mode does not create live previews": "模拟交易不会生成实盘预览",
+    "no duplicate pending live preview": "不存在重复待确认订单预览",
+    "duplicate pending live preview exists": "已存在相同标的和方向的待确认订单预览",
+    "no duplicate pending order preview": "不存在重复待确认订单预览",
+    "duplicate pending order preview exists": "已存在相同标的和方向的待确认订单预览",
     "production live configuration passed": "生产实盘配置通过",
     "production live configuration is incomplete": "生产实盘配置不完整",
     "regular market hours passed": "当前处于美股常规交易时段",

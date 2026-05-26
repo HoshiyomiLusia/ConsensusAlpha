@@ -10,7 +10,6 @@ from app.conference.consensus import evaluate_consensus
 from app.conference.models import ConferenceRunRequest, ConferenceRunResponse
 from app.core.config import Settings
 from app.core.time import utc_now
-from app.execution.paper import PaperExecutor
 from app.market_data.features import compute_market_context
 from app.market_data.models import HistoricalBar, MarketContext, MarketSnapshot
 from app.portfolio.service import get_effective_account, get_effective_positions
@@ -43,7 +42,6 @@ class ConferenceOrchestrator:
         self.provider = provider
         self.llm_provider = llm_provider
         self.risk_service = RiskService(settings)
-        self.paper_executor = PaperExecutor()
 
     async def run(
         self,
@@ -198,13 +196,30 @@ class ConferenceOrchestrator:
                 )
                 live_preview_id = preview_id
             else:
-                execution = self.paper_executor.execute(
-                    db=db,
-                    conference_id=conference_id,
-                    order=order_intent,
-                    snapshot=snapshot,
+                preview_id = new_id("preview")
+                db.add(
+                    LiveOrderPreviewTable(
+                        id=preview_id,
+                        client_order_id=order_intent.client_order_id,
+                        conference_id=conference_id,
+                        risk_decision_id=risk_row.id,
+                        symbol=order_intent.symbol,
+                        side=order_intent.side,
+                        quantity=str(order_intent.quantity),
+                        order_type=order_intent.order_type,
+                        limit_price=str(order_intent.limit_price) if order_intent.limit_price else None,
+                        estimated_notional=str(request.max_notional),
+                        status="PENDING_CONFIRMATION",
+                        account_id="paper",
+                        environment="paper",
+                        preview_payload={
+                            "mode": "paper",
+                            "order": order_intent.model_dump(mode="json"),
+                            "snapshot": snapshot.model_dump(mode="json"),
+                        },
+                    )
                 )
-                order_id = execution.order_id
+                live_preview_id = preview_id
 
         run_row.completed_at = completed_at
         run_row.final_action = consensus.final_action

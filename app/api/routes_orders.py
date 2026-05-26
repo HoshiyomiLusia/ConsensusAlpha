@@ -11,6 +11,8 @@ from app.brokers.models import BrokerProviderError, OrderIntent
 from app.core.config import Settings
 from app.core.time import utc_now
 from app.execution.live import LiveExecutor
+from app.execution.paper import PaperExecutor
+from app.market_data.models import MarketSnapshot
 from app.storage.database import get_db
 from app.storage.repositories import (
     create_audit_event,
@@ -19,6 +21,7 @@ from app.storage.repositories import (
     list_live_previews,
     list_paper_orders,
 )
+from app.storage.tables import ConferenceRunTable
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -57,11 +60,13 @@ def paper_orders(limit: int = 100, db: Session = Depends(get_db)) -> list[dict]:
     ]
 
 
+@router.get("/previews")
 @router.get("/live/previews")
 def live_previews(limit: int = 100, db: Session = Depends(get_db)) -> list[dict]:
     return [_live_preview_dict(row) for row in list_live_previews(db, limit=limit)]
 
 
+@router.post("/previews/{preview_id}/reject")
 @router.post("/live/{preview_id}/reject")
 def reject_live_preview(
     preview_id: str,
@@ -74,19 +79,21 @@ def reject_live_preview(
     if row.status != "PENDING_CONFIRMATION":
         raise HTTPException(status_code=409, detail=f"preview is already {row.status}")
     row.status = "REJECTED"
+    mode_label = "模拟" if _is_paper_preview(row) else "实盘"
     create_audit_event(
         db,
         actor=audit_actor(request),
-        action="live_preview.reject",
-        entity_type="live_order_preview",
+        action="order_preview.reject",
+        entity_type="order_preview",
         entity_id=row.id,
-        summary=f"拒绝 {row.symbol} {row.side} 实盘预览",
-        payload={"symbol": row.symbol, "side": row.side, "quantity": row.quantity},
+        summary=f"拒绝 {row.symbol} {row.side} {mode_label}预览",
+        payload={"symbol": row.symbol, "side": row.side, "quantity": row.quantity, "mode": _preview_mode(row)},
     )
     db.commit()
     return _live_preview_dict(row)
 
 
+@router.post("/previews/{preview_id}/confirm")
 @router.post("/live/{preview_id}/confirm")
 async def confirm_live_preview(
     preview_id: str,
@@ -105,19 +112,59 @@ async def confirm_live_preview(
         create_audit_event(
             db,
             actor=audit_actor(http_request),
-            action="live_preview.expire",
-            entity_type="live_order_preview",
+            action="order_preview.expire",
+            entity_type="order_preview",
             entity_id=row.id,
-            summary=f"{row.symbol} {row.side} 实盘预览已过期",
+            summary=f"{row.symbol} {row.side} 订单预览已过期",
             payload={
                 "symbol": row.symbol,
                 "side": row.side,
                 "quantity": row.quantity,
                 "live_preview_ttl_seconds": settings.live_preview_ttl_seconds,
+                "mode": _preview_mode(row),
             },
         )
         db.commit()
         raise HTTPException(status_code=409, detail="live preview expired")
+
+    if _is_paper_preview(row):
+        if not request.acknowledge_live_risk:
+            raise HTTPException(status_code=400, detail="acknowledge_live_risk is required")
+        order = _order_from_preview(row)
+        snapshot = _snapshot_from_preview(row)
+        execution = PaperExecutor().execute(
+            db=db,
+            conference_id=row.conference_id,
+            order=order,
+            snapshot=snapshot,
+        )
+        row.status = "FILLED"
+        row.confirmed_at = utc_now()
+        if row.conference_id:
+            conference = db.get(ConferenceRunTable, row.conference_id)
+            if conference:
+                conference.order_id = execution.order_id
+        create_audit_event(
+            db,
+            actor=audit_actor(http_request),
+            action="paper_order.confirm",
+            entity_type="order_preview",
+            entity_id=row.id,
+            summary=f"确认 {row.symbol} {row.side} 模拟订单",
+            payload={
+                "symbol": row.symbol,
+                "side": row.side,
+                "quantity": row.quantity,
+                "paper_order_id": execution.order_id,
+                "status": execution.status,
+            },
+        )
+        db.commit()
+        return {
+            "preview": _live_preview_dict(row),
+            "execution": execution.model_dump(mode="json"),
+        }
+
     if not settings.live_ordering_enabled:
         raise HTTPException(status_code=403, detail="live trading is disabled")
     if not request.acknowledge_live_risk:
@@ -232,9 +279,38 @@ def _live_preview_dict(row) -> dict:
         "status": row.status,
         "account_id": row.account_id,
         "environment": row.environment,
+        "mode": _preview_mode(row),
         "created_at": row.created_at,
         "confirmed_at": row.confirmed_at,
     }
+
+
+def _preview_mode(row) -> str:
+    return "paper" if _is_paper_preview(row) else "live"
+
+
+def _is_paper_preview(row) -> bool:
+    return row.environment == "paper" or row.account_id == "paper"
+
+
+def _order_from_preview(row) -> OrderIntent:
+    return OrderIntent(
+        client_order_id=row.client_order_id,
+        symbol=row.symbol,
+        side=row.side,  # type: ignore[arg-type]
+        quantity=Decimal(row.quantity),
+        order_type=row.order_type,  # type: ignore[arg-type]
+        limit_price=Decimal(row.limit_price) if row.limit_price else None,
+        notional=Decimal(row.estimated_notional) if row.estimated_notional else None,
+    )
+
+
+def _snapshot_from_preview(row) -> MarketSnapshot:
+    payload = row.preview_payload or {}
+    snapshot_payload = payload.get("snapshot")
+    if isinstance(snapshot_payload, dict):
+        return MarketSnapshot.model_validate(snapshot_payload)
+    raise HTTPException(status_code=409, detail="paper preview snapshot is unavailable")
 
 
 def _preview_expired(created_at, ttl_seconds: int) -> bool:

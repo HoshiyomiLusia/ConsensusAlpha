@@ -27,7 +27,7 @@ export default function OrdersPage() {
       <section className="toolbar">
         <div>
           <h2>订单</h2>
-          <p>查看模拟成交和受保护的实盘订单预览。</p>
+          <p>先确认订单预览，再查看已经成交的模拟订单。</p>
         </div>
         <button className="icon-button" onClick={() => readiness.refetch()} title="刷新上线检查">
           <RefreshCcw size={18} />
@@ -37,8 +37,8 @@ export default function OrdersPage() {
       <OrderGuidePanel pendingPreviews={pendingPreviews} paperOrders={paperOrderList} onConfirm={setConfirming} />
       <OrderModePanel settings={settings.data} readiness={readiness.data} />
 
-      <section className="panel" id="live-previews">
-        <h3>实盘预览</h3>
+      <section className="panel" id="order-previews">
+        <h3>待确认预览</h3>
         <div className="table">
           <div className="table-header table-orders">
             <span>标的</span>
@@ -47,7 +47,7 @@ export default function OrdersPage() {
             <span>状态</span>
             <span>操作</span>
           </div>
-          {previewList.length === 0 && <div className="empty-state">没有待确认的实盘预览。模拟订单生成后会直接出现在下方。</div>}
+          {previewList.length === 0 && <div className="empty-state">没有订单预览。回到简单模式运行一次自动决策即可生成。</div>}
           {previewList.map((preview) => (
             <LivePreviewRow
               key={preview.preview_id}
@@ -101,25 +101,26 @@ function OrderGuidePanel({
   const latestPaperOrder = paperOrders[0];
 
   if (firstPreview) {
+    const modeLabel = firstPreview.mode === "paper" ? "模拟" : "实盘";
     return (
       <section className="panel order-guide order-guide-pending">
         <div className="order-guide-main">
           <span>下一步</span>
           <h3>核对订单预览，然后确认或拒绝</h3>
           <p>
-            当前有 {pendingPreviews.length} 个预览等待处理。先看标的、方向、数量、金额和环境；认可就确认，不认可就拒绝。
+            当前有 {pendingPreviews.length} 个预览等待处理。先看标的、方向、数量、金额和模式；认可就确认，不认可就拒绝。
           </p>
         </div>
         <div className="order-guide-focus">
           <strong>{firstPreview.symbol}</strong>
-          <span>{displayValue(firstPreview.side)} · {firstPreview.quantity} 股 · {firstPreview.estimated_notional ?? "金额待估算"}</span>
+          <span>{modeLabel} · {displayValue(firstPreview.side)} · {firstPreview.quantity} 股 · {firstPreview.estimated_notional ?? "金额待估算"}</span>
         </div>
         <div className="order-guide-actions">
           <button className="primary-action" type="button" onClick={() => onConfirm(firstPreview)}>
             <ClipboardCheck size={16} />
-            确认这笔预览
+            确认这笔订单
           </button>
-          <a className="secondary-action" href="#live-previews">查看全部预览</a>
+          <a className="secondary-action" href="#order-previews">查看全部预览</a>
         </div>
       </section>
     );
@@ -130,9 +131,9 @@ function OrderGuidePanel({
       <section className="panel order-guide order-guide-done">
         <div className="order-guide-main">
           <span>下一步</span>
-          <h3>模拟订单已完成，不需要再确认</h3>
+          <h3>模拟订单已成交</h3>
           <p>
-            最近一笔是 {latestPaperOrder.symbol} {displayValue(latestPaperOrder.side)}，已经按纸面交易成交。接下来主要看持仓变化，或者回到简单模式生成下一轮决策。
+            最近一笔是 {latestPaperOrder.symbol} {displayValue(latestPaperOrder.side)}，这是你确认后的纸面成交。接下来主要看持仓变化，或者回到简单模式生成下一轮决策。
           </p>
         </div>
         <div className="order-guide-actions">
@@ -273,16 +274,17 @@ function LivePreviewRow({
 }) {
   const productionBlocked = preview.environment === "production" && !productionReady;
   const disabled = preview.status !== "PENDING_CONFIRMATION" || productionBlocked;
+  const modeLabel = preview.mode === "paper" ? "模拟" : "实盘";
   return (
     <div className="table-row table-orders">
       <strong>{preview.symbol}</strong>
-      <span>{displayValue(preview.side)}</span>
+      <span>{modeLabel} · {displayValue(preview.side)}</span>
       <span>{preview.quantity}</span>
       <StatusBadge value={preview.status} tone={preview.status === "PENDING_CONFIRMATION" ? "warn" : "ok"} />
       <div className="row-actions">
         <button
           className="secondary-action order-row-button"
-          title={productionBlocked ? "真实交易上线检查未通过" : "确认实盘预览"}
+          title={productionBlocked ? "真实交易上线检查未通过" : "确认订单预览"}
           disabled={disabled}
           onClick={() => onConfirm(preview)}
         >
@@ -291,7 +293,7 @@ function LivePreviewRow({
         </button>
         <button
           className="secondary-action order-row-button danger"
-          title="拒绝实盘预览"
+          title="拒绝订单预览"
           disabled={preview.status !== "PENDING_CONFIRMATION"}
           onClick={() => onReject(preview.preview_id)}
         >
@@ -322,6 +324,8 @@ function ConfirmModal({ preview, onClose }: { preview: LivePreview; onClose: () 
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["live-previews"] });
+      await queryClient.invalidateQueries({ queryKey: ["paper-orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["positions"] });
       onClose();
     }
   });
@@ -336,19 +340,20 @@ function ConfirmModal({ preview, onClose }: { preview: LivePreview; onClose: () 
   return (
     <div className="modal-backdrop">
       <form className="modal" onSubmit={submit}>
-        <h3>确认实盘订单</h3>
+        <h3>{preview.mode === "paper" ? "确认模拟订单" : "确认实盘订单"}</h3>
         <div className="kv-grid">
           <span>标的</span><strong>{preview.symbol}</strong>
           <span>方向</span><strong>{displayValue(preview.side)}</strong>
           <span>数量</span><strong>{preview.quantity}</strong>
           <span>订单类型</span><strong>{displayValue(preview.order_type)}</strong>
           <span>名义金额</span><strong>{preview.estimated_notional ?? "无"}</strong>
+          <span>模式</span><strong>{preview.mode === "paper" ? "模拟交易" : "实盘交易"}</strong>
           <span>环境</span><strong>{displayValue(preview.environment)}</strong>
           <span>账户</span><strong>{preview.account_id}</strong>
         </div>
         <label className="checkbox-row">
           <input type="checkbox" checked={ack} onChange={(event) => setAck(event.target.checked)} />
-          <span>我确认这可能会向券商提交实盘订单。</span>
+          <span>{preview.mode === "paper" ? "我确认执行这笔模拟订单。" : "我确认这可能会向券商提交实盘订单。"}</span>
         </label>
         {preview.environment === "production" && (
           <>
@@ -363,7 +368,7 @@ function ConfirmModal({ preview, onClose }: { preview: LivePreview; onClose: () 
         {confirm.error && <div className="error-box">{confirm.error.message}</div>}
         <div className="modal-actions">
           <button type="button" className="secondary-action" onClick={onClose}>取消</button>
-          <button type="submit" className="danger-action" disabled={confirm.isPending}>确认下单</button>
+          <button type="submit" className={preview.mode === "paper" ? "primary-action" : "danger-action"} disabled={confirm.isPending}>确认下单</button>
         </div>
       </form>
     </div>

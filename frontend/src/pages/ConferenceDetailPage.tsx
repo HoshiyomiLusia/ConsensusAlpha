@@ -158,7 +158,7 @@ export default function ConferenceDetailPage() {
           <div><Clock size={16} /> Agent 意见已保存</div>
           <div><Clock size={16} /> 共识已评估</div>
           <div><Clock size={16} /> 风控决策已保存</div>
-          <div><Clock size={16} /> {run.order_result ? "模拟订单已成交" : run.live_preview ? "实盘预览待确认" : "未生成订单"}</div>
+          <div><Clock size={16} /> {run.order_result ? "模拟订单已成交" : run.live_preview ? "订单预览待确认" : "未生成订单"}</div>
         </div>
       </section>
     </div>

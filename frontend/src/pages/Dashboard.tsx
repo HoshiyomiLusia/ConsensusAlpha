@@ -16,7 +16,7 @@ export default function Dashboard() {
   const positions = useQuery({ queryKey: ["positions"], queryFn: api.positions });
 
   const latest = conferences.data?.[0];
-  const pendingLive = livePreviews.data?.filter((preview) => preview.status === "PENDING_CONFIRMATION").length ?? 0;
+  const pendingPreviews = livePreviews.data?.filter((preview) => preview.status === "PENDING_CONFIRMATION").length ?? 0;
 
   return (
     <div className="page-stack">
@@ -33,7 +33,7 @@ export default function Dashboard() {
       <div className="metrics-grid">
         <MetricCard label="会议记录" value={String(conferences.data?.length ?? 0)} detail="最近保存的运行" />
         <MetricCard label="模拟订单" value={String(paperOrders.data?.length ?? 0)} detail="已成交模拟单" />
-        <MetricCard label="实盘预览" value={String(pendingLive)} detail="等待人工确认" />
+        <MetricCard label="订单预览" value={String(pendingPreviews)} detail="等待人工确认" />
         <MetricCard label="持仓" value={String(positions.data?.length ?? 0)} detail="当前数据源返回行数" />
       </div>
 

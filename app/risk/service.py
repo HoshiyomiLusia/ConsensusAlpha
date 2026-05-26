@@ -222,20 +222,20 @@ class RiskService:
                     "cooldown_seconds": self.settings.trade_cooldown_seconds,
                 },
             )
+            duplicate_pending = self._has_pending_live_preview(
+                db,
+                risk_input.symbol,
+                risk_input.action,
+            )
+            add(
+                "duplicate_pending_live_preview",
+                not duplicate_pending,
+                "no duplicate pending order preview"
+                if not duplicate_pending
+                else "duplicate pending order preview exists",
+                {"symbol": risk_input.symbol.upper(), "action": risk_input.action},
+            )
             if risk_input.trading_mode == "live":
-                duplicate_pending = self._has_pending_live_preview(
-                    db,
-                    risk_input.symbol,
-                    risk_input.action,
-                )
-                add(
-                    "duplicate_pending_live_preview",
-                    not duplicate_pending,
-                    "no duplicate pending live preview"
-                    if not duplicate_pending
-                    else "duplicate pending live preview exists",
-                    {"symbol": risk_input.symbol.upper(), "action": risk_input.action},
-                )
                 daily_count, daily_notional = self._daily_live_usage(db)
                 daily_count_ok = daily_count < self.settings.max_daily_live_order_count
                 add(
@@ -263,12 +263,6 @@ class RiskService:
                         "projected_notional": str(projected_notional),
                         "max_daily_live_notional": str(self.settings.max_daily_live_notional),
                     },
-                )
-            else:
-                add(
-                    "duplicate_pending_live_preview",
-                    True,
-                    "paper mode does not create live previews",
                 )
         else:
             add("cooldown", True, "cooldown skipped because no database session was provided")
@@ -422,6 +416,7 @@ class RiskService:
             select(LiveOrderAttemptTable, LiveOrderPreviewTable)
             .join(LiveOrderPreviewTable, LiveOrderPreviewTable.id == LiveOrderAttemptTable.preview_id)
             .where(LiveOrderAttemptTable.created_at >= cutoff)
+            .where(LiveOrderPreviewTable.environment != "paper")
             .where(LiveOrderAttemptTable.status.in_(["ACCEPTED", "FILLED", "CONFIRMED"]))
         )
         rows = list(db.execute(stmt))
