@@ -138,6 +138,15 @@ docker compose -p consensusalpha-test -f docker-compose.test.yml up --build -d
 
 Open `http://127.0.0.1:5174`. The test API listens on `http://127.0.0.1:8001`.
 
+Run the personal work environment:
+
+```bash
+cp .env.work.example .env.work
+docker compose -p consensusalpha-work -f docker-compose.work.yml up --build -d
+```
+
+Open `http://127.0.0.1:5173`. Runtime settings are stored in the local ignored `.env.work` file.
+
 Run local development servers:
 
 ```bash

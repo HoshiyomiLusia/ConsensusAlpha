@@ -10,6 +10,7 @@ __pycache__/
 !.env.example
 !.env.test.example
 !.env.production.example
+!.env.work.example
 *.egg-info/
 consensus_alpha.db
 test.db
