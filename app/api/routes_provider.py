@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from app.api.dependencies import get_app_settings
 from app.brokers.factory import build_broker_provider
+from app.brokers.models import BrokerProviderError
 from app.brokers.webull_provider import WebullProvider
 from app.core.config import Settings
 
@@ -48,8 +49,20 @@ async def webull_accounts(
     )
     try:
         accounts = await WebullProvider(settings).list_accounts()
+    except BrokerProviderError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": exc.code, "message": str(exc), "details": exc.details},
+        ) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "webull_account_lookup_failed",
+                "message": "Webull 账户 ID 获取失败。请检查 OpenAPI 密钥、环境和账户绑定状态。",
+                "details": {"error_type": type(exc).__name__},
+            },
+        ) from exc
     return {
         "environment": settings.webull_env,
         "region": settings.webull_region,

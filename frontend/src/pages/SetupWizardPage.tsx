@@ -74,7 +74,7 @@ export default function SetupWizardPage() {
     accountLookupMessage ||
     (canLookupWebullAccounts
       ? "准备好了。点击按钮后，系统会通过 Webull OpenAPI 自动读取账户 ID。"
-      : "先填写 App Key 和 App Secret，再选择开户地区；日本 Webull 账户请选择“日本 / jp”。");
+      : "先填写 Webull OpenAPI 的 App Key 和 App Secret；当前官方交易 API 文档使用 us 区域。");
 
   useEffect(() => {
     if (!settings.data) return;
@@ -84,7 +84,7 @@ export default function SetupWizardPage() {
       trading_mode: settings.data.trading_mode,
       enable_live_trading: settings.data.enable_live_trading,
       webull_env: settings.data.webull_env,
-      webull_region: settings.data.webull_region,
+      webull_region: "us",
       llm_agent_configs: hydrateAgentConfigs(settings.data),
       mock_agent_action: settings.data.mock_agent_action,
       max_position_pct: String(settings.data.max_position_pct),
@@ -264,14 +264,9 @@ export default function SetupWizardPage() {
                       </select>
                     </label>
                     <label>
-                      <span>区域</span>
+                      <span>OpenAPI 区域</span>
                       <select value={form.webull_region} onChange={(event) => update("webull_region", event.target.value)}>
-                        <option value="us">美国 / us</option>
-                        <option value="jp">日本 / jp</option>
-                        <option value="hk">香港 / hk</option>
-                        <option value="sg">新加坡 / sg</option>
-                        <option value="au">澳大利亚 / au</option>
-                        <option value="th">泰国 / th</option>
+                        <option value="us">美国 / us（Webull OpenAPI 交易 API）</option>
                       </select>
                     </label>
                     <label>
@@ -342,7 +337,7 @@ export default function SetupWizardPage() {
                         <h4>需要准备的信息</h4>
                         <p><strong>账户 ID</strong> 是 Webull OpenAPI 绑定账户的标识，不是邮箱或登录名；普通证券账户设置页通常不会显示。填入 App Key / Secret 后，优先点击“获取账户 ID”。</p>
                         <p><strong>App Key / App Secret</strong> 来自 Webull 开发者后台创建的 OpenAPI 应用。Secret 只在后端写入 `.env`，前端不会回显。</p>
-                        <p><strong>区域</strong> 要和你的 Webull 开户地区一致。日本 Webull 账户通常选择 `jp`，美国账户选择 `us`。</p>
+                        <p><strong>OpenAPI 区域</strong> 第一版按 Webull 官方交易 API 文档使用 `us`。日本普通证券账户页面不等于 OpenAPI 交易账户授权页。</p>
                       </section>
                       <section>
                         <h4>两个数据选项</h4>

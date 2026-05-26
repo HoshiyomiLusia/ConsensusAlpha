@@ -1,6 +1,8 @@
 from decimal import Decimal
 
-from app.brokers.models import OrderIntent
+import pytest
+
+from app.brokers.models import BrokerProviderError, OrderIntent
 from app.brokers.webull_provider import WebullProvider
 from app.core.config import Settings
 
@@ -72,6 +74,15 @@ class FakeTradeClient:
     order_v2 = FakeOrderV2()
 
 
+class UnauthorizedAccountV2:
+    def get_account_list(self):
+        raise RuntimeError("HTTP Status: 401, Code: UNAUTHORIZED, Msg: , RequestID: req-1")
+
+
+class UnauthorizedTradeClient:
+    account_v2 = UnauthorizedAccountV2()
+
+
 def _provider(enable_live=False):
     settings = Settings(
         broker_provider="webull",
@@ -101,6 +112,19 @@ def test_webull_provider_maps_snapshot_account_and_positions():
     assert account.equity == Decimal("100000")
     assert positions[0].market_value == Decimal("200")
     assert accounts[0]["account_id"] == "acct-1"
+
+
+def test_webull_provider_surfaces_unauthorized_without_retry_error():
+    provider = _provider()
+    provider._trade_client = UnauthorizedTradeClient()
+
+    import asyncio
+
+    with pytest.raises(BrokerProviderError) as exc_info:
+        asyncio.run(provider.list_accounts())
+
+    assert exc_info.value.code == "webull_unauthorized"
+    assert "授权失败" in str(exc_info.value)
 
 
 def test_webull_provider_maps_preview_and_place_order():

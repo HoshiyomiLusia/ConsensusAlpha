@@ -364,7 +364,7 @@ class WebullProvider:
         api_client.add_endpoint(self.settings.webull_region, endpoint)
         return api_client
 
-    @retry(wait=wait_exponential(multiplier=0.2, min=0.2, max=1.5), stop=stop_after_attempt(3))
+    @retry(wait=wait_exponential(multiplier=0.2, min=0.2, max=1.5), stop=stop_after_attempt(3), reraise=True)
     def _sdk_call(self, call: Callable[[], Any]) -> Any:
         try:
             response = call()
@@ -379,11 +379,21 @@ class WebullProvider:
         except BrokerProviderError:
             raise
         except Exception as exc:
-            logger.warning("webull_provider_error code=%s message=%s", type(exc).__name__, exc)
+            message = str(exc)
+            logger.warning("webull_provider_error code=%s message=%s", type(exc).__name__, message)
+            if "UNAUTHORIZED" in message or "HTTP Status: 401" in message:
+                raise BrokerProviderError(
+                    "Webull 授权失败：App Key / App Secret 与当前环境、OpenAPI 权限或账户类型不匹配。",
+                    code="webull_unauthorized",
+                    details={
+                        "http_status": 401,
+                        "reason": "请确认这组密钥来自 Webull OpenAPI，测试/生产环境选择正确，并且应用已绑定可用账户。",
+                    },
+                ) from exc
             raise BrokerProviderError(
                 "Webull SDK request failed",
                 code=type(exc).__name__,
-                details={"message": str(exc)},
+                details={"message": message},
             ) from exc
 
     def _response_payload(self, response: Any) -> dict | list:

@@ -35,3 +35,6 @@ def configure_logging() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    # The Webull SDK logs signed request headers before raising errors. Keep provider-level
+    # redacted diagnostics, but suppress SDK request dumps so keys/signatures never hit logs.
+    logging.getLogger("webull.core.client").setLevel(logging.CRITICAL)
